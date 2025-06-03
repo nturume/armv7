@@ -2,9 +2,9 @@
 #include <cstdlib>
 #include<cstring>
 #include "./elf.hpp"
+#include "./stuff.hpp"
 
-
-int main() {
+ fn main() -> i32 {
   Elf loader("./build/elf");
   Elf::ProgramHeaderIterator iter(loader.file, loader.header);
 
@@ -13,8 +13,4 @@ int main() {
   if(iter.next(&ph) == nullptr) {
     return 0;
   }
-
-  printf("---: %u\n",ph.p_filesz);
-  
-  printf("hello world: size of elf32 header: %hu\n", loader.header.e_phnum);
 }

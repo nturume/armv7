@@ -23,7 +23,6 @@ struct Elf{
         return nullptr;
       }
       const size_t offset =(size_t) header.e_phoff + (sizeof(Ph)*index);
-      printf("offset: %lu\n", offset);
       if(fseek(file, offset, SEEK_SET)){
         printf("failed to seek..\n");
         return nullptr;
