@@ -3,14 +3,23 @@
 #include<cstring>
 #include "./elf.hpp"
 #include "./stuff.hpp"
+#include "./mem.hpp"
 
- fn main() -> i32 {
-  Elf loader("./build/elf");
-  Elf::ProgramHeaderIterator iter(loader.file, loader.header);
+Memory<1024> m;
 
-  Elf::Ph ph = {}; 
+fn main() -> i32 {
+
+  m.writeLE<u32>(0, 0xf00ff00f);
+  u32 res = m.readLE<u32>(0);
+
+  printf("res: %xu\n", res);
+
+  // Elf loader("./build/elf");
+  // Elf::ProgramHeaderIterator iter(loader.file, loader.header);
+
+  // Elf::Ph ph = {}; 
     
-  if(iter.next(&ph) == nullptr) {
-    return 0;
-  }
+  // if(iter.next(&ph) == nullptr) {
+  //   return 0;
+  // }
 }
