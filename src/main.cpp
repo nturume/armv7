@@ -4,22 +4,32 @@
 #include "./elf.hpp"
 #include "./stuff.hpp"
 #include "./mem.hpp"
+#include "./decoder.hpp"
 
 Memory<1024> m;
 
+#ifndef TESTING
 fn main() -> i32 {
+  Elf elf("./build/elf");
+  Elf::ProgramHeaderIterator iter(elf.file, elf.header);
 
-  m.writeLE<u32>(0, 0xf00ff00f);
-  u32 res = m.readLE<u32>(0);
+  m.loadElf(iter);
 
-  printf("res: %xu\n", res);
+  u32 instr = m.readBE<u32>(elf.header.e_entry);
 
-  // Elf loader("./build/elf");
-  // Elf::ProgramHeaderIterator iter(loader.file, loader.header);
-
+  printf("Instruction: %x\n", instr);
+  Decoder::decodeA(instr);
   // Elf::Ph ph = {}; 
     
   // if(iter.next(&ph) == nullptr) {
   //   return 0;
   // }
 }
+#else
+
+int main() {
+  Memory<64>::test();
+  return 0;
+}
+
+#endif
