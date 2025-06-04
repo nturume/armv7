@@ -1,6 +1,6 @@
 .section .text
 .globl _start
 _start:
-rfe r0
+mrrc2 p10, 1, r0, r1,c5
 
 

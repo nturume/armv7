@@ -1,10 +1,10 @@
+#include "./decoder.hpp"
+#include "./elf.hpp"
+#include "./mem.hpp"
+#include "./stuff.hpp"
 #include <cstdio>
 #include <cstdlib>
-#include<cstring>
-#include "./elf.hpp"
-#include "./stuff.hpp"
-#include "./mem.hpp"
-#include "./decoder.hpp"
+#include <cstring>
 
 Memory<1024> m;
 
@@ -19,8 +19,8 @@ fn main() -> i32 {
 
   printf("Instruction: %x\n", instr);
   Decoder::decodeA(instr);
-  // Elf::Ph ph = {}; 
-    
+  // Elf::Ph ph = {};
+
   // if(iter.next(&ph) == nullptr) {
   //   return 0;
   // }

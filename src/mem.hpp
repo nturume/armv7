@@ -1,10 +1,10 @@
 #pragma once
 #include "./stuff.hpp"
 #include "elf.hpp"
+#include <cassert>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
-#include <cassert>
 #include <elf.h>
 
 template <int size> struct Memory {
@@ -24,23 +24,27 @@ template <int size> struct Memory {
     memcpy(buf + pos, &value, sizeof(T) < r ? sizeof(T) : r);
   }
 
-  void loadElf(Elf::ProgramHeaderIterator it ) {
-    Elf::Ph ph = {}; 
-    while(it.next(&ph)) {
-      if(ph.p_type != PT_LOAD) continue;
+  void loadElf(Elf::ProgramHeaderIterator it) {
+    Elf::Ph ph = {};
+    while (it.next(&ph)) {
+      if (ph.p_type != PT_LOAD)
+        continue;
       FileReader fr(it.file);
       fr.seekTo((i64)ph.p_offset);
-      printf("  loading ph at: %u to %u (%u)bytes\n", ph.p_vaddr,ph.p_vaddr+ph.p_filesz, ph.p_filesz);
-      if(size < ph.p_vaddr+ph.p_filesz) {
-        printf("  attempt to load program out of memory. memsize: (%u) vaddr end: (%u)\n",size, ph.p_vaddr+ph.p_filesz);
+      printf("  loading ph at: %u to %u (%u)bytes\n", ph.p_vaddr,
+             ph.p_vaddr + ph.p_filesz, ph.p_filesz);
+      if (size < ph.p_vaddr + ph.p_filesz) {
+        printf("  attempt to load program out of memory. memsize: (%u) vaddr "
+               "end: (%u)\n",
+               size, ph.p_vaddr + ph.p_filesz);
         exit(1);
-      } 
-      u64 r = fr.read(buf+ph.p_vaddr,ph.p_filesz);
-      if(r != ph.p_filesz) {
+      }
+      u64 r = fr.read(buf + ph.p_vaddr, ph.p_filesz);
+      if (r != ph.p_filesz) {
         printf("Error loading program headers\n");
         exit(1);
       }
-    }     
+    }
   }
 
   template <typename T> T readLE(u64 pos) {
@@ -74,8 +78,7 @@ template <int size> struct Memory {
     memcpy(buf + pos, &value, sizeof(T) < r ? sizeof(T) : r);
   }
 
-
-   static  void test() {
+  static void test() {
     Memory<64> m = {};
     m.writeBE<u8>(0, 0xff);
     assert(m.readBE<u8>(0) == 0xff);

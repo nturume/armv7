@@ -3,11 +3,10 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
-#include<elf.h>
-#include<cstring>
+#include <elf.h>
+#include <cstring>
 
-
-struct Elf{
+struct Elf {
   FILE *file;
   Elf32_Ehdr header;
   using Ph = Elf32_Phdr;
@@ -83,5 +82,5 @@ struct Elf{
 
   ~Elf() {
     fclose(file);
-  }  
+  }
 };

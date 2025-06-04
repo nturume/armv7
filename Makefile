@@ -49,8 +49,8 @@ clean:
 run: $(TARGET_EXEC) $(BUILD_DIR)/elf
 	$(V_AT)$(TARGET_EXEC)
 
-fmt: $(CPPCODE)
-	clang-format $< > $<
+fmt:
+	clang-format -i $(CPPCODE)
 	
 
 .PHONY: all doc clean
