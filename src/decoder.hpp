@@ -29,6 +29,24 @@ enum class Instr {
   pliReg,
   pldReg,
   undefined,
+  strImm,
+  strReg,
+  strt1,
+  strt2, // B==0
+  ldrImm,
+  ldrLit,
+  ldrReg,
+  ldrt1,
+  ldrt2,//B==0
+  strbImm,
+  strbReg,
+  strbt1,
+  strbt2,//B==0
+  ldrbImm,
+  ldrbLit,
+  ldrbReg,
+  ldrbt1,
+  ldrbt2,//B==0
 };
 
 namespace Decoder {
@@ -87,6 +105,42 @@ inline int printInstr(Instr instr) {
     return printf("Instr::pldReg\n");
   case Instr::undefined:
     return printf("Instr::undefined\n");
+  case Instr::strImm:
+    return printf("Instr::strImm\n");
+  case Instr::strReg:
+    return printf("Instr::strReg\n");
+  case Instr::strt1:
+    return printf("Instr::strt1\n");
+  case Instr::strt2:
+    return printf("Instr::strt2\n");
+  case Instr::ldrImm:
+    return printf("Instr::ldrImm2\n");
+  case Instr::ldrLit:
+    return printf("Instr::ldrLit\n");
+  case Instr::ldrReg:
+    return printf("Instr::ldrReg\n");
+  case Instr::ldrt1:
+    return printf("Instr::ldrt1\n");
+  case Instr::ldrt2:
+    return printf("Instr::ldrt2\n");
+  case Instr::strbImm:
+    return printf("Instr::strbImm\n");
+  case Instr::strbReg:
+    return printf("Instr::strbReg\n");
+  case Instr::strbt1:
+    return printf("Instr::strbt1\n");
+  case Instr::strbt2:
+    return printf("Instr::strbt2\n");
+  case Instr::ldrbImm:
+    return printf("Instr::ldrbImm\n");
+  case Instr::ldrbLit:
+    return printf("Instr::ldrbLit\n");
+  case Instr::ldrbReg:
+    return printf("Instr::ldrbReg\n");
+  case Instr::ldrbt1:
+    return printf("Instr::ldrbt1\n");
+  case Instr::ldrbt2:
+    return printf("Instr::ldrbt2\n");
   }
 
   return printf("Unknown instruction\n");

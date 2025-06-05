@@ -5,7 +5,80 @@ namespace Decoder {
 
 static Instr dataProcAndMisc(u32 word) {}
 
-static Instr loadStoreWordAndUnsignedByte(u32 word) {}
+static Instr loadStoreWordAndUnsignedByte(u32 word) {
+  struct __attribute__((packed)) I {
+    u32 _1 : 4;
+    u32 B : 1;
+    u32 _2 : 11;
+    // half
+    u32 Rn : 4;
+    u32 op1 : 5;
+    u32 A : 1;
+    u32 _3 : 2;
+    u32 cond : 4;
+  };
+  I *instr = reinterpret_cast<I *>(&word);
+  bool B = instr->B;
+  bool A = instr->A;
+  u8 Rn = instr->Rn;
+  u8 op1 = instr->op1;
+
+  printf("load store word and unsigned byte.. B: %u, A: %u\n", (u32)B, (u32)A);
+  if (A) {
+    if (!(op1 & 0b101) and !B and op1 != 0b1010 and op1 != 0b10) {
+      return Instr::strReg;
+    }
+    if ((op1 == 0b10 or op1 == 0b1010) and !B)
+      return Instr::strt2;
+    if ((op1 & 0b101) == 1 and !B and op1 != 0b1011 and op1 != 0b11 and !B) {
+      return Instr::ldrReg;
+    }
+    if ((op1 == 0b1011 or op1 == 0b11) and !B)
+      return Instr::ldrt2;
+
+    if ((op1 & 0b101) == 0b100 and !B and op1 != 0b1110 and op1 != 0b110)
+      return Instr::strbReg;
+
+    if (op1 == 0b1110 or op1 == 0b110 and !B)
+      return Instr::strbt2;
+
+    if ((op1 & 0b101) == 0b101 and (op1 & 0b111) != 0b111 and !B) {
+      return Instr::ldrbReg;
+    }
+
+    if ((op1 & 0b111) == 0b111 and !B)
+      return Instr::ldrbt2;
+  } else {
+    if (!(op1 & 0b101) and op1 != 0b1010 and op1 != 0b10) {
+      return Instr::strImm;
+    }
+
+    if ((op1 == 0b10 or op1 == 0b1010))
+      return Instr::strt1;
+
+    if ((op1 & 0b101) == 1 and op1 != 0b1011 and op1 != 0b11) {
+      if (Rn == 0xf)
+        return Instr::ldrLit;
+      return Instr::ldrImm;
+    }
+
+    if (op1 == 0b1011 or op1 == 0b11)
+      return Instr::ldrt1;
+
+    if ((op1 & 0b101) == 0b100 and op1 != 0b1110 and op1 != 0b110)
+      return Instr::strbImm;
+
+    if (op1 == 0b1110 or op1 == 0b110)
+      return Instr::strbt1;
+    if ((op1 & 0b101) == 0b101 and op1 != 0b1111 and op1 != 0b111) {
+      if (Rn == 0xf)
+        return Instr::ldrbLit;
+      return Instr::ldrbImm;
+    }
+    if ((op1 & 0b111) == 0b111)
+      return Instr::ldrbt1;
+  }
+}
 
 static Instr media(u32 word) {}
 
@@ -16,15 +89,15 @@ static Instr coprocessorAndSVC(u32 word) {}
 struct __attribute__((packed)) Gen {
   u32 _1 : 4;
   u32 op : 1;
-  u32 op1 : 3;
   u32 _2 : 20;
+  u32 op1 : 3;
   u32 cond : 4;
 };
 
 static_assert(sizeof(Gen) == 4, "");
 
 static Instr conditional(Gen instr) {
-  printf("conditional instruction...\n");
+  printf("conditional instruction... op1: %hhb\n", instr.op1);
   switch (instr.op1) {
   case 0b10:
     return loadStoreWordAndUnsignedByte(*reinterpret_cast<u32 *>(&instr));
