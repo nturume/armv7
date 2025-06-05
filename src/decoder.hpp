@@ -47,12 +47,54 @@ enum class Instr {
   ldrbReg,
   ldrbt1,
   ldrbt2,//B==0
+  stmda,
+  ldmda,
+  stm,
+  ldm,
+  pop,
+  stmdb,
+  push,
+  ldmdb,
+  stmib,
+  ldmib,
+  ldmUser,
+  stmUser,
+  ldmExRet,
+  b,
 };
 
 namespace Decoder {
 Instr decodeA(u32 instr);
 inline int printInstr(Instr instr) {
   switch (instr) {
+  case Instr::b:
+    return printf("Instr::b\n");
+  case Instr::ldmExRet:
+    return printf("Instr::ldmExRet\n");
+  case Instr::stmUser:
+    return printf("Instr::stmUser\n");
+  case Instr::ldmUser:
+    return printf("Instr::ldmUser\n");
+  case Instr::ldmib:
+    return printf("Instr::ldmib\n");
+  case Instr::stmib:
+    return printf("Instr::stmib\n");
+  case Instr::ldmdb:
+    return printf("Instr::ldmdb\n");
+  case Instr::push:
+    return printf("Instr::push\n");
+  case Instr::stmdb:
+    return printf("Instr::stmdb\n");
+  case Instr::pop:
+    return printf("Instr::pop\n");
+  case Instr::ldm:
+    return printf("Instr::ldm\n");
+  case Instr::stm:
+    return printf("Instr::stm\n");
+  case Instr::ldmda:
+    return printf("Instr::ldmda\n");
+  case Instr::stmda:
+    return printf("Instr::stmda\n");
   case Instr::src:
     return printf("Instr::src\n");
   case Instr::rfe:

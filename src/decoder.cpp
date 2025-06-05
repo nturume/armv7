@@ -39,7 +39,7 @@ static Instr loadStoreWordAndUnsignedByte(u32 word) {
     if ((op1 & 0b101) == 0b100 and !B and op1 != 0b1110 and op1 != 0b110)
       return Instr::strbReg;
 
-    if (op1 == 0b1110 or op1 == 0b110 and !B)
+    if ((op1 == 0b1110 or op1 == 0b110) and !B)
       return Instr::strbt2;
 
     if ((op1 & 0b101) == 0b101 and (op1 & 0b111) != 0b111 and !B) {
@@ -82,7 +82,59 @@ static Instr loadStoreWordAndUnsignedByte(u32 word) {
 
 static Instr media(u32 word) {}
 
-static Instr branchAndBlockDataTransfer(u32 word) {}
+static Instr branchAndBlockDataTransfer(u32 word) {
+  struct __attribute__((packed)) I {
+    u32 _1 : 15;
+    u32 R : 1;
+    u32 Rn : 4;
+    u32 op : 6;
+    u32 _2 : 2;
+    u32 cond : 4;
+  };
+  I *i = reinterpret_cast<I *>(&word);
+  u8 R = i->R;
+  u8 op = i->op;
+  u8 Rn = i->Rn;
+
+  if (op == 0b10 or op == 0b0)
+    return Instr::stmda;
+  if (op == 0b11 or op == 0b1)
+    return Instr::ldmda;
+  if (op == 0b1010 or op == 0b1000)
+    return Instr::stm;
+  if (op == 0b1001)
+    return Instr::ldm;
+  if (op == 0b1011 and Rn != 0b1101)
+    return Instr::ldm;
+  if (op == 0b1011)
+    return Instr::pop;
+  if (op == 0b10000)
+    return Instr::stmdb;
+  if (op == 0b10010 and Rn != 0b1101)
+    return Instr::stmdb;
+  if (op == 0b10010)
+    return Instr::push;
+  if (op == 0b10001 or op == 0b10011)
+    return Instr::ldmdb;
+  if (op == 0b11010 or op == 0b11000)
+    return Instr::stmib;
+  if (op == 0b11001 or op == 0b11011)
+    return Instr::ldmib;
+  if ((op & 0b100101) == 0b100)
+    return Instr::stmUser;
+  if ((op & 0b100101) == 0b101 and !R)
+    return Instr::ldmUser;
+  if ((op & 0b100101) == 0b101)
+    return Instr::ldmExRet;
+  if ((op & 0b110000) == 0b100000)
+    return Instr::b;
+  if ((op & 0b110000) == 0b110000) {
+    if (i->cond == 0xf)
+      return Instr::blx; // unreachable
+    return Instr::bl;
+  }
+  return Instr::undefined;
+}
 
 static Instr coprocessorAndSVC(u32 word) {}
 
@@ -195,8 +247,8 @@ static Instr memoryHints(Uncond uncond) {
     default:
       return Instr::unpredictable;
     }
-  case 1011111:
-  case 1011011:
+  case 0b1011111:
+  case 0b1011011:
     return Instr::unpredictable;
   case 0b1100001:
   case 0b1101001:
