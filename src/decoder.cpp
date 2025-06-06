@@ -3,7 +3,7 @@
 
 namespace Decoder {
 
-static Instr dataProcAndMisc(u32 word) {}
+static Instr dataProcAndMisc(u32 word) { return Instr::undefined; }
 
 static Instr loadStoreWordAndUnsignedByte(u32 word) {
   struct __attribute__((packed)) I {
@@ -78,9 +78,72 @@ static Instr loadStoreWordAndUnsignedByte(u32 word) {
     if ((op1 & 0b111) == 0b111)
       return Instr::ldrbt1;
   }
+  return Instr::undefined;
 }
 
-static Instr media(u32 word) {}
+static Instr parallelAddSub(u32 word) {}
+
+static Instr packingUnpacking(u32 word) {}
+
+static Instr signedMultDiv(u32 word) {}
+
+static Instr media(u32 word) {
+  struct __attribute__((packed)) I {
+    u32 Rn : 4;
+    u32 _1 : 1;
+    u32 op2 : 3;
+    u32 _2 : 4;
+    u32 Rd : 4;
+    u32 _3 : 4;
+    u32 op1 : 5;
+    u32 _4 : 3;
+    u32 cond : 4;
+  };
+
+  I *i = reinterpret_cast<I *>(&word);
+  u8 Rn = i->Rn;
+  u8 op2 = i->op2;
+  u8 Rd = i->Rd;
+  u8 op1 = i->op1;
+
+  if ((op1 & 0b11100) == 0) {
+    return parallelAddSub(word);
+  }
+
+  if ((op1 & 0b11100) == 0b100) {
+    return parallelAddSub(word);
+  }
+
+  if ((op1 & 0b11000) == 0b1000) {
+    return packingUnpacking(word);
+  }
+
+  if ((op1 & 0b11000) == 0b10000) {
+    return signedMultDiv(word);
+  }
+
+  if (op1 == 0b11000 and op2 == 0 and Rd == 0xf) {
+    return Instr::usad8;
+  }
+
+  if (op1 == 0b11000 and op2 == 0) {
+    return Instr::usada8;
+  }
+
+  if ((op1 & 0b11110) == 0b11010 and (op2 & 0b11) == 0b10) {
+    return Instr::sbfx;
+  }
+  if ((op1 & 0b11110) == 0b11100 and (op2 & 0b11) == 0) {
+    if (Rn == 0xf)
+      return Instr::bfc;
+    return Instr::bfi;
+  }
+  if ((op1 & 0b11110) == 0b11110 and (op2 & 0b11) == 0b10) {
+    return Instr::ubfx;
+  }
+
+  return Instr::undefined;
+}
 
 static Instr branchAndBlockDataTransfer(u32 word) {
   struct __attribute__((packed)) I {
@@ -138,40 +201,47 @@ static Instr branchAndBlockDataTransfer(u32 word) {
 
 static Instr coprocessorAndSVC(u32 word) {
   struct __attribute__((packed)) I {
-    u32 _1: 4;
-    u32 op: 1;
-    u32 _2: 3;
-    u32 coproc: 4;
-    u32 _3: 4;
-    u32 Rn: 4;
-    u32 op1: 6;
-    u32 _4: 2;
-    u32 cond:4;
+    u32 _1 : 4;
+    u32 op : 1;
+    u32 _2 : 3;
+    u32 coproc : 4;
+    u32 _3 : 4;
+    u32 Rn : 4;
+    u32 op1 : 6;
+    u32 _4 : 2;
+    u32 cond : 4;
   };
-  I*i= reinterpret_cast<I*>(&word);
+  I *i = reinterpret_cast<I *>(&word);
   u8 coproc = i->coproc;
   u8 op1 = i->op1;
   u8 op = i->op;
   u8 Rn = i->Rn;
-  if(op1==0b0 or op1 == 0b1) return Instr::undefined;
-  if((op1&0b110000)==0b110000) return Instr::svc;
-  if(coproc==0b1011 or coproc==0b1010) {
-    //not implementing floats and simd
+  if (op1 == 0b0 or op1 == 0b1)
+    return Instr::undefined;
+  if ((op1 & 0b110000) == 0b110000)
+    return Instr::svc;
+  if (coproc == 0b1011 or coproc == 0b1010) {
+    // not implementing floats and simd
   } else {
-    if((op1&0b100001)==0 and (op1&0b111011)!=0) return Instr::stc1;
-    if((op1&0b100001)==1 and (op1&0b111011)!=1){
-      if(Rn!=0xf) return Instr::ldc1Imm;
+    if ((op1 & 0b100001) == 0 and (op1 & 0b111011) != 0)
+      return Instr::stc1;
+    if ((op1 & 0b100001) == 1 and (op1 & 0b111011) != 1) {
+      if (Rn != 0xf)
+        return Instr::ldc1Imm;
       return Instr::ldc1Lit;
     }
-    if(op1==0b100) {
+    if (op1 == 0b100) {
       return Instr::mcrr1;
     }
-    if(op1==0b101){
+    if (op1 == 0b101) {
       return Instr::mrrc1;
     }
-    if((op1&0b110000)==0b100000 and !op) return Instr::cdp1;
-    if((op1&0b110001)==0b100000 and op) return Instr::mcr1;
-    if((op1&0b110001)==0b100001 and op) return Instr::mrc1;
+    if ((op1 & 0b110000) == 0b100000 and !op)
+      return Instr::cdp1;
+    if ((op1 & 0b110001) == 0b100000 and op)
+      return Instr::mcr1;
+    if ((op1 & 0b110001) == 0b100001 and op)
+      return Instr::mrc1;
   }
 
   return Instr::undefined;

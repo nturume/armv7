@@ -70,12 +70,30 @@ enum class Instr {
   cdp1,
   mcr1,
   mrc1,
+  usada8,
+  usad8,
+  sbfx,
+  bfc,
+  bfi,
+  ubfx,
 };
 
 namespace Decoder {
 Instr decodeA(u32 instr);
 inline int printInstr(Instr instr) {
   switch (instr) {
+  case Instr::ubfx:
+    return printf("Instr::ubfx\n");
+  case Instr::bfi:
+    return printf("Instr::bfi\n");
+  case Instr::bfc:
+    return printf("instr::bfc\n");
+  case Instr::sbfx:
+    return printf("Instr::sbfx\n");
+  case Instr::usad8:
+    return printf("Instr::usad8\n");
+  case Instr::usada8:
+    return printf("Instr::usada8\n");
   case Instr::mcrr1:
     return printf("Instr::mcrr1\n");
   case Instr::mrrc1:

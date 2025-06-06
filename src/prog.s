@@ -1,4 +1,4 @@
 .section .text
 .globl _start
 _start:
-mrc p15, 0,r0,c1,c2, 0 
+bfi r0,r1,#0, #1
