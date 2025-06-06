@@ -76,12 +76,73 @@ enum class Instr {
   bfc,
   bfi,
   ubfx,
+
+  sadd16,
+  sasx,
+  ssax,
+  ssub16,
+  sadd8,
+  ssub8,
+
+  qadd16,
+  qasx,
+  qsax,
+  qsub16,
+  qadd8,
+  qsub8,
+
+  shadd16,
+  shasx,
+  shsax,
+  shsub16,
+  shadd8,
+  shsub8,
+
+  
 };
 
 namespace Decoder {
 Instr decodeA(u32 instr);
 inline int printInstr(Instr instr) {
   switch (instr) {
+  case Instr::qsub8:
+    return printf("Instr::qsub8\n");
+  case Instr::qadd8:
+    return printf("Instr::qadd8\n");
+  case Instr::qsub16:
+    return printf("Instr::qsub16\n");
+  case Instr::qsax:
+    return printf("Instr::qsax\n");
+  case Instr::qasx:
+    return printf("Instr::qasx\n");
+  case Instr::qadd16:
+    return printf("Instr::qadd16\n");
+
+  case Instr::shsub8:
+    return printf("Instr::shsub8\n");
+  case Instr::shadd8:
+    return printf("Instr::shadd8\n");
+  case Instr::shsub16:
+    return printf("Instr::shsub16\n");
+  case Instr::shsax:
+    return printf("Instr::shsax\n");
+  case Instr::shasx:
+    return printf("Instr::shasx\n");
+  case Instr::shadd16:
+    return printf("Instr::shadd16\n");
+
+  case Instr::ssub8:
+    return printf("Instr::ssub8\n");
+  case Instr::sadd8:
+    return printf("Instr::sadd8\n");
+  case Instr::ssub16:
+    return printf("Instr::ssub16\n");
+  case Instr::ssax:
+    return printf("Instr::ssax\n");
+  case Instr::sasx:
+    return printf("Instr::sasx\n");
+  case Instr::sadd16:
+    return printf("Instr::sadd16\n");
   case Instr::ubfx:
     return printf("Instr::ubfx\n");
   case Instr::bfi:

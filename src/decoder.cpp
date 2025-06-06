@@ -81,9 +81,74 @@ static Instr loadStoreWordAndUnsignedByte(u32 word) {
   return Instr::undefined;
 }
 
-static Instr parallelAddSub(u32 word) {}
+static Instr parallelAddSub(u32 word) {
+  struct I {
+    u32 _1 : 5;
+    u32 op2 : 3;
+    u32 _2 : 12;
+    u32 op1 : 2;
+    u32 _3 : 6;
+    u32 cond : 4;
+  };
 
-static Instr packingUnpacking(u32 word) {}
+  I *i = reinterpret_cast<I *>(&word);
+  switch (i->op1) {
+  case 0b1:
+    switch (i->op2) {
+    case 0:
+      return Instr::sadd16;
+    case 1:
+      return Instr::sasx;
+    case 0b10:
+      return Instr::ssax;
+    case 0b11:
+      return Instr::ssub16;
+    case 0b100:
+      return Instr::sadd8;
+    case 0b111:
+      return Instr::ssub8;
+    }
+    break;
+  case 0b10:
+    switch (i->op2) {
+    case 0:
+      return Instr::qadd16;
+    case 1:
+      return Instr::qasx;
+    case 0b10:
+      return Instr::qsax;
+    case 0b11:
+      return Instr::qsub16;
+    case 0b100:
+      return Instr::qadd8;
+    case 0b111:
+      return Instr::qsub8;
+    }
+    break;
+  case 0b11:
+    switch (i->op2) {
+    case 0:
+      return Instr::shadd16;
+    case 1:
+      return Instr::shasx;
+    case 0b10:
+      return Instr::shsax;
+    case 0b11:
+      return Instr::shsub16;
+    case 0b100:
+      return Instr::shadd8;
+    case 0b111:
+      return Instr::shsub8;
+    }
+    break;
+  }
+
+  return Instr::undefined;
+}
+
+static Instr packingUnpacking(u32 word) {
+  return Instr::undefined;
+}
 
 static Instr signedMultDiv(u32 word) {}
 
