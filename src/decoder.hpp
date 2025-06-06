@@ -37,16 +37,16 @@ enum class Instr {
   ldrLit,
   ldrReg,
   ldrt1,
-  ldrt2,//B==0
+  ldrt2, // B==0
   strbImm,
   strbReg,
   strbt1,
-  strbt2,//B==0
+  strbt2, // B==0
   ldrbImm,
   ldrbLit,
   ldrbReg,
   ldrbt1,
-  ldrbt2,//B==0
+  ldrbt2, // B==0
   stmda,
   ldmda,
   stm,
@@ -119,13 +119,111 @@ enum class Instr {
   rbit,
   uxtah,
   uxth,
-  revsh, 
+  revsh,
+
+  smlad,
+  smuad,
+  smlsd,
+  smusd,
+  sdiv,
+  udiv,
+  smlald,
+  smlsld,
+  smmla,
+  smmul,
+  smmls,
+
+  andReg,
+  eorReg,
+  subReg,
+  rsbReg,
+  addReg,
+  adcReg,
+  sbcReg,
+  rscReg,
+  tstReg,
+  teqReg,
+  cmpReg,
+  cmnReg,
+  orrReg,
+  movReg,
+  lslImm,
+  lsrImm,
+  asrImm,
+  rrx,
+  rorImm,
+  bicReg,
+  mvnReg
 };
 
 namespace Decoder {
 Instr decodeA(u32 instr);
 inline int printInstr(Instr instr) {
   switch (instr) {
+  case Instr::asrImm:
+    return printf("Instr::asrImm\n");
+  case Instr::andReg:
+    return printf("Instr::andReg\n");
+  case Instr::eorReg:
+    return printf("Instr::eorReg\n");
+  case Instr::subReg:
+    return printf("Instr::subReg\n");
+  case Instr::rsbReg:
+    return printf("Instr::rsbReg\n");
+  case Instr::addReg:
+    return printf("Instr::addReg\n");
+  case Instr::adcReg:
+    return printf("Instr::adcReg\n");
+  case Instr::sbcReg:
+    return printf("Instr::sbcReg\n");
+  case Instr::rscReg:
+    return printf("Instr::rscReg\n");
+  case Instr::tstReg:
+    return printf("Instr::tstReg\n");
+  case Instr::teqReg:
+    return printf("Instr::teqReg\n");
+  case Instr::cmpReg:
+    return printf("Instr::cmpReg\n");
+  case Instr::cmnReg:
+    return printf("Instr::cmnReg\n");
+  case Instr::orrReg:
+    return printf("Instr::orrReg\n");
+  case Instr::movReg:
+    return printf("Instr::movReg\n");
+  case Instr::lslImm:
+    return printf("Instr::lslImm\n");
+  case Instr::lsrImm:
+    return printf("Instr::lsrImm\n");
+  case Instr::rrx:
+    return printf("Instr::rrx\n");
+  case Instr::rorImm:
+    return printf("Instr::rorImm\n");
+  case Instr::bicReg:
+    return printf("Instr::bicReg\n");
+  case Instr::mvnReg:
+    return printf("Instr::mvnReg\n");
+  case Instr::smlad:
+    return printf("Instr::smlad\n");
+  case Instr::smuad:
+    return printf("Instr::smuad\n");
+  case Instr::smlsd:
+    return printf("Instr::smlsd\n");
+  case Instr::smusd:
+    return printf("Instr::smusd\n");
+  case Instr::sdiv:
+    return printf("Instr::sdiv\n");
+  case Instr::smlald:
+    return printf("Instr::smlald\n");
+  case Instr::smlsld:
+    return printf("Instr::smlsld\n");
+  case Instr::smmla:
+    return printf("Instr::smmla\n");
+  case Instr::smmul:
+    return printf("Instr::smmul\n");
+  case Instr::smmls:
+    return printf("Instr::smmls\n");
+  case Instr::udiv:
+    return printf("Instr::udiv\n");
   case Instr::revsh:
     return printf("Instr::revsh\n");
   case Instr::uxth:
@@ -230,7 +328,7 @@ inline int printInstr(Instr instr) {
     return printf("Instr::mcr1\n");
   case Instr::mrc1:
     return printf("Instr::mrc1\n");
-    
+
   case Instr::ldc1Lit:
     return printf("Instr::ldc1Lit\n");
   case Instr::ldc1Imm:

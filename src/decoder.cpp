@@ -2,8 +2,74 @@
 #include <cstdio>
 
 namespace Decoder {
+static Instr dataProcReg(u32 word) {
+  struct I{
+    u32 _1:5;
+    u32 op2: 2;
+    u32 imm5:5;
+    u32 _2: 8;
+    u32 op: 5;
+    u32 _3: 7;
+  };
+  I*i = reinterpret_cast<I*>(&word);
+  u8 op2 = i->op2;
+  u8 op = i->op;
+  u8 imm5 = i->imm5;
+  if(!(op&0b11110)) return Instr::andReg;
+  if((op&0b11110)==0b10) return Instr::eorReg;
+  if((op&0b11110)==0b100) return Instr::subReg;
+  if((op&0b11110)==0b110) return Instr::rsbReg;
+  if((op&0b11110)==0b1000) return Instr::addReg;
+  if((op&0b11110)==0b1010) return Instr::adcReg;
+  if((op&0b11110)==0b1100) return Instr::sbcReg;
+  if((op&0b11110)==0b1110) return Instr::rscReg;
 
-static Instr dataProcAndMisc(u32 word) { return Instr::undefined; }
+  if(op==0b10001) return Instr::tstReg;
+  if(op==0b10011) return Instr::teqReg;
+  if(op==0b10101) return Instr::cmpReg;
+  if(op==0b10111) return Instr::cmnReg;
+
+  if((op&0b11110)==0b11000) return Instr::orrReg;
+
+  if((op&0b11110)==0b11010) {
+    if(!op2 and !imm5) return Instr::movReg;
+    if(!op2) return Instr::lslImm;
+    if(op2==1) return Instr::lsrImm;
+    if(op2==0b10) return Instr::asrImm;
+    if(op2==0b11 and !imm5) return Instr::rrx;
+    if(op2==0b11) return Instr::rorImm;
+  }
+
+  if((op&0b11110)==0b11100) return Instr::bicReg;
+  if((op&0b11110)==0b11110) return Instr::mvnReg;
+
+  return Instr::undefined;
+}
+
+static Instr dataProcAndMisc(u32 word) { 
+  struct I {
+    u32 _1: 4;
+    u32 op2: 4;
+    u32 _2: 12;
+    u32 op1: 5;
+    u32 op: 1;
+    u32 _3: 6;
+  };
+  I*i = reinterpret_cast<I*>(&word);
+  u8 op = i->op;
+  u8 op1 = i->op;
+  u8 op2 = i->op2;
+
+  if(!op) {
+    if((op1&0b11001)!=0b10000 and !(op2&1)) {
+      return dataProcReg(word);
+    }
+  } else {
+    
+  }
+  
+  return Instr::undefined;
+ }
 
 static Instr loadStoreWordAndUnsignedByte(u32 word) {
   struct __attribute__((packed)) I {
@@ -165,50 +231,109 @@ static Instr packingUnpacking(u32 word) {
   if (op1 == 0) {
     if (!(op2 & 1))
       return Instr::pkh;
-    if(op2==0b11 && A!=0xf) return Instr::sxtab16;
-    if(op2==0b11) return Instr::sxtb16;   
-    if(op2==0b101) return Instr::sel;    
+    if (op2 == 0b11 && A != 0xf)
+      return Instr::sxtab16;
+    if (op2 == 0b11)
+      return Instr::sxtb16;
+    if (op2 == 0b101)
+      return Instr::sel;
   }
 
-  if((op1&0b110)==0b10 and !(op2&1)) return Instr::ssat;
-  
-  if(op1==0b10) {
-    if(op2==1) return Instr::ssat16;
-    if(op2==0b11 and A!=0xf) return Instr::sxtab;
-    if(op2==0b11) return Instr::sxtb; 
+  if ((op1 & 0b110) == 0b10 and !(op2 & 1))
+    return Instr::ssat;
+
+  if (op1 == 0b10) {
+    if (op2 == 1)
+      return Instr::ssat16;
+    if (op2 == 0b11 and A != 0xf)
+      return Instr::sxtab;
+    if (op2 == 0b11)
+      return Instr::sxtb;
   }
 
-  if(op1==0b11) {
-    if(op2==1) return Instr::rev;
-    if(op2==0b11 and A!=0xf) return Instr::sxtah;
-    if(op2==0b11) return Instr::sxth;
-    if(op2==0b101) return Instr::rev16;
+  if (op1 == 0b11) {
+    if (op2 == 1)
+      return Instr::rev;
+    if (op2 == 0b11 and A != 0xf)
+      return Instr::sxtah;
+    if (op2 == 0b11)
+      return Instr::sxth;
+    if (op2 == 0b101)
+      return Instr::rev16;
   }
 
-  if(op1==0b100 and op2 == 0b11) {
-    if(A!=0xf) return Instr::uxtab16;
+  if (op1 == 0b100 and op2 == 0b11) {
+    if (A != 0xf)
+      return Instr::uxtab16;
     return Instr::uxtb16;
   }
 
-  if((op1&0b110)==0b110 and !(op2&1)) return Instr::usat;
+  if ((op1 & 0b110) == 0b110 and !(op2 & 1))
+    return Instr::usat;
 
-  if(op1==0b110) {
-    if(op2==1) return Instr::usat16;
-    if(op2==0b11 and A!=0xf) return Instr::uxtab;
-    if(op2==0b11) return Instr::uxtb;
+  if (op1 == 0b110) {
+    if (op2 == 1)
+      return Instr::usat16;
+    if (op2 == 0b11 and A != 0xf)
+      return Instr::uxtab;
+    if (op2 == 0b11)
+      return Instr::uxtb;
   }
 
-  if(op1==0b111) {
-    if(op2==1) return Instr::rbit;
-    if(op2==0b11 and A!=0xf) return Instr::uxtah;
-    if(op2==0b11) return Instr::uxth;
-    if(op2==0b101) return Instr::revsh;
+  if (op1 == 0b111) {
+    if (op2 == 1)
+      return Instr::rbit;
+    if (op2 == 0b11 and A != 0xf)
+      return Instr::uxtah;
+    if (op2 == 0b11)
+      return Instr::uxth;
+    if (op2 == 0b101)
+      return Instr::revsh;
   }
-  
+
   return Instr::undefined;
 }
 
-static Instr signedMultDiv(u32 word) {}
+static Instr signedMultDiv(u32 word) {
+  struct I {
+    u32 _1 : 5;
+    u32 op2 : 3;
+    u32 _2 : 4;
+    u32 A : 4;
+    u32 _3 : 4;
+    u32 op1 : 3;
+    u32 _4 : 9;
+  };
+  I *i = reinterpret_cast<I *>(&word);
+  u8 op2 = i->op2;
+  u8 A = i->A;
+  u8 op1 = i->op1;
+
+  if (op1 == 0) {
+    if ((op2 & 0b110) == 0 and A != 0xf)
+      return Instr::smlad;
+    if ((op2 & 0b110) == 0)
+      return Instr::smuad;
+    if ((op2 & 0b110) == 0b10 and A != 0xf)
+      return Instr::smlsd;
+    if ((op2 & 0b110) == 0b10)
+      return Instr::smusd;
+  }
+
+  if(op1==0b1 and !op2) return Instr::sdiv;
+  if(op1==0b11 and !op2) return Instr::udiv;
+
+  if(op1==0b100 and (op2&0b110)==0) return Instr::smlald;
+  if(op1==0b100 and (op2&0b110)==0b10) return Instr::smlsld;
+
+  if(op1==0b101) {
+    if(!(op2&0b110) and A!=0xf) return Instr::smmla;
+    if(!(op2&0b110)) return Instr::smmul;
+    if((op2&0b110)==0b110) return Instr::smmls;
+  }
+
+  return Instr::undefined;
+}
 
 static Instr media(u32 word) {
   struct __attribute__((packed)) I {
