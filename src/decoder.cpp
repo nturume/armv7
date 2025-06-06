@@ -147,6 +147,64 @@ static Instr parallelAddSub(u32 word) {
 }
 
 static Instr packingUnpacking(u32 word) {
+  struct I {
+    u32 _1 : 5;
+    u32 op2 : 3;
+    u32 _2 : 8;
+    u32 A : 4;
+    u32 op1 : 3;
+    u32 _3 : 5;
+    u32 cond : 4;
+  };
+  I *i = reinterpret_cast<I *>(&word);
+
+  u8 op1 = i->op1;
+  u8 op2 = i->op2;
+  u8 A = i->A;
+
+  if (op1 == 0) {
+    if (!(op2 & 1))
+      return Instr::pkh;
+    if(op2==0b11 && A!=0xf) return Instr::sxtab16;
+    if(op2==0b11) return Instr::sxtb16;   
+    if(op2==0b101) return Instr::sel;    
+  }
+
+  if((op1&0b110)==0b10 and !(op2&1)) return Instr::ssat;
+  
+  if(op1==0b10) {
+    if(op2==1) return Instr::ssat16;
+    if(op2==0b11 and A!=0xf) return Instr::sxtab;
+    if(op2==0b11) return Instr::sxtb; 
+  }
+
+  if(op1==0b11) {
+    if(op2==1) return Instr::rev;
+    if(op2==0b11 and A!=0xf) return Instr::sxtah;
+    if(op2==0b11) return Instr::sxth;
+    if(op2==0b101) return Instr::rev16;
+  }
+
+  if(op1==0b100 and op2 == 0b11) {
+    if(A!=0xf) return Instr::uxtab16;
+    return Instr::uxtb16;
+  }
+
+  if((op1&0b110)==0b110 and !(op2&1)) return Instr::usat;
+
+  if(op1==0b110) {
+    if(op2==1) return Instr::usat16;
+    if(op2==0b11 and A!=0xf) return Instr::uxtab;
+    if(op2==0b11) return Instr::uxtb;
+  }
+
+  if(op1==0b111) {
+    if(op2==1) return Instr::rbit;
+    if(op2==0b11 and A!=0xf) return Instr::uxtah;
+    if(op2==0b11) return Instr::uxth;
+    if(op2==0b101) return Instr::revsh;
+  }
+  
   return Instr::undefined;
 }
 
