@@ -2,121 +2,290 @@
 #include <cstdio>
 
 namespace Decoder {
+
+static Instr satAddSub(u32 word) {
+  switch (word & 0b11000000000000000000000) {
+  case 0b00000000000000000000000:
+    return Instr::qadd;
+  case 0b01000000000000000000000:
+    return Instr::qsub;
+  case 0b10000000000000000000000:
+    return Instr::qdadd;
+  case 0b11000000000000000000000:
+    return Instr::qdsub;
+  }
+  return Instr::undefined;
+}
+
+static Instr halfMult(u32 word) {
+  u8 op1 = ((word >> 21) & 0b11);
+  u8 op = word & (1 << 5);
+
+  switch (op1) {
+  case 0:
+    return Instr::smlabb;
+  case 1:
+    if (!op)
+      return Instr::smlawb;
+    else
+      return Instr::smulwb;
+  case 2:
+    return Instr::smlalbb;
+  case 3:
+    return Instr::smulbb;
+  }
+
+  return Instr::undefined;
+}
+
+static Instr mult(u32 word) {
+  u8 op = (word>>20)&0xf;
+  if(!(op&0b1110)) return Instr::mul;
+  if((op&0b1110)==0b10) return Instr::mla;
+  switch(op){
+    case 0b100: return Instr::umaal;
+    case 0b110: return Instr::mls;
+  }
+  switch(op>>1){
+    case 0b100: return Instr::umull;
+    case 0b101: return Instr::umlal;
+    case 0b110: return Instr::smull;
+    case 0b111: return Instr::smlal;
+  }
+  return Instr::undefined;
+}
+
 static Instr misc(u32 word) {
+  struct I {
+    u32 _1 : 4;
+    u32 op2 : 3;
+    u32 _2 : 2;
+    u32 B : 1;
+    u32 _3 : 6;
+    u32 op1 : 4;
+    u32 _4 : 1;
+    u32 op : 2;
+    u32 _5 : 9;
+  };
+  I *i = reinterpret_cast<I *>(&word);
+  u8 op2 = i->op2;
+  u8 op1 = i->op1;
+  u8 op = i->op;
+  u8 B = i->B;
+  if (op2 == 0) {
+    if (B and !(op & 1))
+      return Instr::mrsBanked;
+    if (B and (op & 1))
+      return Instr::msrBanked;
+    if (!B and !(op & 1))
+      return Instr::mrs;
+    if (!B and (op & 0b11) == 1 and !(op1 & 0b11))
+      return Instr::msrApp;
+    if (!B and (op & 0b11) == 1 and ((op1 & 0b11) == 1 or (op1 & 0b10)))
+      return Instr::msrSys;
+    if (op == 0b11)
+      return Instr::msrSys;
+  }
+
+  if (op2 == 1 and op == 1)
+    return Instr::bx;
+  if (op2 == 1 and op == 0b11)
+    return Instr::clz;
+
+  if (op2 == 0b10 and op == 1)
+    return Instr::bxj;
+  if (op2 == 0b11 and op == 1)
+    return Instr::blxReg;
+
+  if (op2 == 0b101)
+    return satAddSub(word);
+
+  if (op2 == 0b110 and op == 0b11)
+    return Instr::eret;
+  if (op2 == 0b111 and op == 0b1)
+    return Instr::bkpt;
+
+  if (op2 == 0b111 and op == 0b10)
+    return Instr::hvc;
+  if (op2 == 0b111 and op == 0b11)
+    return Instr::smc;
+
   return Instr::undefined;
 }
 
 static Instr dataProcShiftedReg(u32 word) {
-  struct I{
-    u32 _1:5;
-    u32 op2: 2;
-    u32 _2: 13;
-    u32 op1: 5;
-    u32 _3: 7;
+  struct I {
+    u32 _1 : 5;
+    u32 op2 : 2;
+    u32 _2 : 13;
+    u32 op1 : 5;
+    u32 _3 : 7;
   };
-  I*i = reinterpret_cast<I*>(&word);
+  I *i = reinterpret_cast<I *>(&word);
   u8 op2 = i->op2;
   u8 op = i->op1;
-  if(!(op&0b11110)) return Instr::andShiftedReg;
-  if((op&0b11110)==0b10) return Instr::eorShiftedReg;
-  if((op&0b11110)==0b100) return Instr::subShiftedReg;
-  if((op&0b11110)==0b110) return Instr::rsbShiftedReg;
-  if((op&0b11110)==0b1000) return Instr::addShiftedReg;
-  if((op&0b11110)==0b1010) return Instr::adcShiftedReg;
-  if((op&0b11110)==0b1100) return Instr::sbcShiftedReg;
-  if((op&0b11110)==0b1110) return Instr::rscShiftedReg;
+  if (!(op & 0b11110))
+    return Instr::andShiftedReg;
+  if ((op & 0b11110) == 0b10)
+    return Instr::eorShiftedReg;
+  if ((op & 0b11110) == 0b100)
+    return Instr::subShiftedReg;
+  if ((op & 0b11110) == 0b110)
+    return Instr::rsbShiftedReg;
+  if ((op & 0b11110) == 0b1000)
+    return Instr::addShiftedReg;
+  if ((op & 0b11110) == 0b1010)
+    return Instr::adcShiftedReg;
+  if ((op & 0b11110) == 0b1100)
+    return Instr::sbcShiftedReg;
+  if ((op & 0b11110) == 0b1110)
+    return Instr::rscShiftedReg;
 
-  if(op==0b10001) return Instr::tstShiftedReg;
-  if(op==0b10011) return Instr::teqShiftedReg;
-  if(op==0b10101) return Instr::cmpShiftedReg;
-  if(op==0b10111) return Instr::cmnShiftedReg;
+  if (op == 0b10001)
+    return Instr::tstShiftedReg;
+  if (op == 0b10011)
+    return Instr::teqShiftedReg;
+  if (op == 0b10101)
+    return Instr::cmpShiftedReg;
+  if (op == 0b10111)
+    return Instr::cmnShiftedReg;
 
-  if((op&0b11110)==0b11000) return Instr::orrShiftedReg;
+  if ((op & 0b11110) == 0b11000)
+    return Instr::orrShiftedReg;
 
-  if((op&0b11110)==0b11010) {
-    if(!op2) return Instr::lslReg;
-    if(op2==1) return Instr::lsrReg;
-    if(op2==0b10) return Instr::asrReg;
-    if(op2==0b11) return Instr::rorReg;
+  if ((op & 0b11110) == 0b11010) {
+    if (!op2)
+      return Instr::lslReg;
+    if (op2 == 1)
+      return Instr::lsrReg;
+    if (op2 == 0b10)
+      return Instr::asrReg;
+    if (op2 == 0b11)
+      return Instr::rorReg;
   }
 
-  if((op&0b11110)==0b11100) return Instr::bicShiftedReg;
-  if((op&0b11110)==0b11110) return Instr::mvnShiftedReg;
+  if ((op & 0b11110) == 0b11100)
+    return Instr::bicShiftedReg;
+  if ((op & 0b11110) == 0b11110)
+    return Instr::mvnShiftedReg;
   return Instr::undefined;
 }
 static Instr dataProcReg(u32 word) {
-  struct I{
-    u32 _1:5;
-    u32 op2: 2;
-    u32 imm5:5;
-    u32 _2: 8;
-    u32 op: 5;
-    u32 _3: 7;
+  struct I {
+    u32 _1 : 5;
+    u32 op2 : 2;
+    u32 imm5 : 5;
+    u32 _2 : 8;
+    u32 op : 5;
+    u32 _3 : 7;
   };
-  I*i = reinterpret_cast<I*>(&word);
+  I *i = reinterpret_cast<I *>(&word);
   u8 op2 = i->op2;
   u8 op = i->op;
   u8 imm5 = i->imm5;
-  if(!(op&0b11110)) return Instr::andReg;
-  if((op&0b11110)==0b10) return Instr::eorReg;
-  if((op&0b11110)==0b100) return Instr::subReg;
-  if((op&0b11110)==0b110) return Instr::rsbReg;
-  if((op&0b11110)==0b1000) return Instr::addReg;
-  if((op&0b11110)==0b1010) return Instr::adcReg;
-  if((op&0b11110)==0b1100) return Instr::sbcReg;
-  if((op&0b11110)==0b1110) return Instr::rscReg;
+  if (!(op & 0b11110))
+    return Instr::andReg;
+  if ((op & 0b11110) == 0b10)
+    return Instr::eorReg;
+  if ((op & 0b11110) == 0b100)
+    return Instr::subReg;
+  if ((op & 0b11110) == 0b110)
+    return Instr::rsbReg;
+  if ((op & 0b11110) == 0b1000)
+    return Instr::addReg;
+  if ((op & 0b11110) == 0b1010)
+    return Instr::adcReg;
+  if ((op & 0b11110) == 0b1100)
+    return Instr::sbcReg;
+  if ((op & 0b11110) == 0b1110)
+    return Instr::rscReg;
 
-  if(op==0b10001) return Instr::tstReg;
-  if(op==0b10011) return Instr::teqReg;
-  if(op==0b10101) return Instr::cmpReg;
-  if(op==0b10111) return Instr::cmnReg;
+  if (op == 0b10001)
+    return Instr::tstReg;
+  if (op == 0b10011)
+    return Instr::teqReg;
+  if (op == 0b10101)
+    return Instr::cmpReg;
+  if (op == 0b10111)
+    return Instr::cmnReg;
 
-  if((op&0b11110)==0b11000) return Instr::orrReg;
+  if ((op & 0b11110) == 0b11000)
+    return Instr::orrReg;
 
-  if((op&0b11110)==0b11010) {
-    if(!op2 and !imm5) return Instr::movReg;
-    if(!op2) return Instr::lslImm;
-    if(op2==1) return Instr::lsrImm;
-    if(op2==0b10) return Instr::asrImm;
-    if(op2==0b11 and !imm5) return Instr::rrx;
-    if(op2==0b11) return Instr::rorImm;
+  if ((op & 0b11110) == 0b11010) {
+    if (!op2 and !imm5)
+      return Instr::movReg;
+    if (!op2)
+      return Instr::lslImm;
+    if (op2 == 1)
+      return Instr::lsrImm;
+    if (op2 == 0b10)
+      return Instr::asrImm;
+    if (op2 == 0b11 and !imm5)
+      return Instr::rrx;
+    if (op2 == 0b11)
+      return Instr::rorImm;
   }
 
-  if((op&0b11110)==0b11100) return Instr::bicReg;
-  if((op&0b11110)==0b11110) return Instr::mvnReg;
+  if ((op & 0b11110) == 0b11100)
+    return Instr::bicReg;
+  if ((op & 0b11110) == 0b11110)
+    return Instr::mvnReg;
 
   return Instr::undefined;
 }
 
-static Instr dataProcAndMisc(u32 word) { 
+static Instr syncPrim(u32 word) {
+  u8 op = (word>>20)&0xf;
+  if((op&0b1011)==0) return Instr::swp;
+  switch(op){
+    case 0b1000: return Instr::strex;
+    case 0b1001: return Instr::ldrex;
+    case 0b1010: return Instr::strexd;
+    case 0b1011: return Instr::ldrexd;
+    case 0b1100: return Instr::strexb;
+    case 0b1101: return Instr::ldrexb;
+    case 0b1110: return Instr::strexh;
+    case 0b1111: return Instr::ldrexh;
+  }
+  return Instr::undefined;
+}
+
+static Instr dataProcAndMisc(u32 word) {
   struct I {
-    u32 _1: 4;
-    u32 op2: 4;
-    u32 _2: 12;
-    u32 op1: 5;
-    u32 op: 1;
-    u32 _3: 6;
+    u32 _1 : 4;
+    u32 op2 : 4;
+    u32 _2 : 12;
+    u32 op1 : 5;
+    u32 op : 1;
+    u32 _3 : 6;
   };
-  I*i = reinterpret_cast<I*>(&word);
+  I *i = reinterpret_cast<I *>(&word);
   u8 op = i->op;
-  u8 op1 = i->op;
+  u8 op1 = i->op1;
   u8 op2 = i->op2;
-  if(!op) {
-    if((op1&0b11001)!=0b10000 and !(op2&1)) {
+  if (!op) {
+    if ((op1 & 0b11001) != 0b10000 and !(op2 & 1)) {
       return dataProcReg(word);
     }
-    if((op1&0b11001)!=0b10000 and (op2&0b1001)==1) {
+    if ((op1 & 0b11001) != 0b10000 and (op2 & 0b1001) == 1) {
       return dataProcShiftedReg(word);
     }
-    if((op1&0b11001)==0b10000 and (op2&0b1000)==0) {
+    if ((op1 & 0b11001) == 0b10000 and (op2 & 0b1000) == 0) {
       return misc(word);
     }
-  } else {
+    if ((op1 & 0b11001) == 0b10000 and (op2 & 0b1001) == 0b1000) {
+      return halfMult(word);
+    }
+
+    if(!(op1&0b10000) and op2 == 0b1001) return mult(word);
+    if((op1&0b10000) and op2 == 0b1001) return syncPrim(word);
     
+  } else {
   }
-  
+
   return Instr::undefined;
- }
+}
 
 static Instr loadStoreWordAndUnsignedByte(u32 word) {
   struct __attribute__((packed)) I {
@@ -367,16 +536,23 @@ static Instr signedMultDiv(u32 word) {
       return Instr::smusd;
   }
 
-  if(op1==0b1 and !op2) return Instr::sdiv;
-  if(op1==0b11 and !op2) return Instr::udiv;
+  if (op1 == 0b1 and !op2)
+    return Instr::sdiv;
+  if (op1 == 0b11 and !op2)
+    return Instr::udiv;
 
-  if(op1==0b100 and (op2&0b110)==0) return Instr::smlald;
-  if(op1==0b100 and (op2&0b110)==0b10) return Instr::smlsld;
+  if (op1 == 0b100 and (op2 & 0b110) == 0)
+    return Instr::smlald;
+  if (op1 == 0b100 and (op2 & 0b110) == 0b10)
+    return Instr::smlsld;
 
-  if(op1==0b101) {
-    if(!(op2&0b110) and A!=0xf) return Instr::smmla;
-    if(!(op2&0b110)) return Instr::smmul;
-    if((op2&0b110)==0b110) return Instr::smmls;
+  if (op1 == 0b101) {
+    if (!(op2 & 0b110) and A != 0xf)
+      return Instr::smmla;
+    if (!(op2 & 0b110))
+      return Instr::smmul;
+    if ((op2 & 0b110) == 0b110)
+      return Instr::smmls;
   }
 
   return Instr::undefined;

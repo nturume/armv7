@@ -175,12 +175,138 @@ enum class Instr {
   rorReg,
   bicShiftedReg,
   mvnShiftedReg,
+
+  mrsBanked,
+  msrBanked,
+  mrs,
+  msr,
+  msrApp,
+  msrSys,
+
+  bx,
+  clz,
+  bxj,
+  blxReg,
+  eret,
+  bkpt,
+  hvc,
+  smc,
+
+  qadd,
+  qsub,
+  qdadd,
+  qdsub,
+
+  smlabb,
+  smlawb,
+  smulwb,
+  smlalbb,
+  smulbb,
+
+  mul,
+  mla,
+  umaal,
+  mls,
+  umull,
+  umlal,
+  smull,
+  smlal,
+
+  swp,
+  strex,
+  ldrex,
+  strexd,
+  ldrexd,
+  strexb,
+  ldrexb,
+  strexh,
+  ldrexh,
 };
 
 namespace Decoder {
 Instr decodeA(u32 instr);
 inline int printInstr(Instr instr) {
   switch (instr) {
+ case Instr::swp:
+    return printf("Instr::swp\n");
+ case Instr::strex:
+    return printf("Instr::strex\n");
+ case Instr::ldrex:
+    return printf("Instr::ldrex\n");
+ case Instr::strexd:
+    return printf("Instr::strexd\n");
+ case Instr::ldrexd:
+    return printf("Instr::ldrexd\n");
+ case Instr::strexb:
+    return printf("Instr::strexb\n");
+ case Instr::ldrexb:
+    return printf("Instr::ldrexb\n");
+ case Instr::strexh:
+    return printf("Instr::strexh\n");
+ case Instr::ldrexh:
+    return printf("Instr::ldrexh\n");
+ case Instr::mul:
+    return printf("Instr::mul\n");
+ case Instr::mla:
+    return printf("Instr::mla\n");
+ case Instr::umaal:
+    return printf("Instr::umaal\n");
+ case Instr::mls:
+    return printf("Instr::mls\n");
+ case Instr::umull:
+    return printf("Instr::umull\n");
+ case Instr::umlal:
+    return printf("Instr::umlal\n");
+ case Instr::smull:
+    return printf("Instr::smull\n");
+ case Instr::smlal:
+    return printf("Instr::smlal\n");
+  case Instr::smlabb:
+    return printf("Instr::smlabb\n");
+  case Instr::smlawb:
+    return printf("Instr::smlawb\n");
+  case Instr::smulwb:
+    return printf("Instr::smulwb\n");
+  case Instr::smlalbb:
+    return printf("Instr::smlalbb\n");
+  case Instr::smulbb:
+    return printf("Instr::smulbb\n");
+  case Instr::qadd:
+    return printf("Instr::qadd\n");
+  case Instr::qsub:
+    return printf("Instr::qsub\n");
+  case Instr::qdadd:
+    return printf("Instr::qdadd\n");
+  case Instr::qdsub:
+    return printf("Instr::qdsub\n");
+  case Instr::bx:
+    return printf("Instr::bx\n");
+  case Instr::clz:
+    return printf("Instr::clz\n");
+  case Instr::bxj:
+    return printf("Instr::bxj\n");
+  case Instr::blxReg:
+    return printf("Instr::blxReg\n");
+  case Instr::eret:
+    return printf("Instr::eret\n");
+  case Instr::bkpt:
+    return printf("Instr::bkpt\n");
+  case Instr::hvc:
+    return printf("Instr::hvc\n");
+  case Instr::smc:
+    return printf("Instr::smc\n");
+  case Instr::mrsBanked:
+    return printf("Instr::mrsBanked\n");
+  case Instr::msrBanked:
+    return printf("Instr::msrBanked\n");
+  case Instr::mrs:
+    return printf("Instr::mrs\n");
+  case Instr::msr:
+    return printf("Instr::msr\n");
+  case Instr::msrApp:
+    return printf("Instr::msrApp\n");
+  case Instr::msrSys:
+    return printf("Instr::msrSys\n");
   case Instr::orrShiftedReg:
     return printf("Instr::orrShiftedReg\n");
   case Instr::lslReg:
