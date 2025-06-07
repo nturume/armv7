@@ -221,12 +221,46 @@ enum class Instr {
   ldrexb,
   strexh,
   ldrexh,
+
+  strhReg,
+  ldrhReg,
+  strhImm,
+  ldrhImm,
+  ldrhLit,
+  ldrdReg,
+  ldrsbReg,
+  ldrdImm,
+  ldrdLit,
+  ldrsbImm,
+  ldrsbLit
 };
 
 namespace Decoder {
 Instr decodeA(u32 instr);
 inline int printInstr(Instr instr) {
   switch (instr) {
+ case Instr::strhReg:
+    return printf("Instr::strhReg\n");
+ case Instr::ldrhReg:
+    return printf("Instr::ldrhReg\n");
+ case Instr::strhImm:
+    return printf("Instr::strhImm\n");
+ case Instr::ldrhImm:
+    return printf("Instr::ldrhImm\n");
+ case Instr::ldrhLit:
+    return printf("Instr::ldrhLit\n");
+ case Instr::ldrdReg:
+    return printf("Instr::ldrdReg\n");
+ case Instr::ldrsbReg:
+    return printf("Instr::ldrsbReg\n");
+ case Instr::ldrdImm:
+    return printf("Instr::ldrdImm\n");
+ case Instr::ldrdLit:
+    return printf("Instr::ldrdLit\n");
+ case Instr::ldrsbImm:
+    return printf("Instr::ldrsbImm\n");
+ case Instr::ldrsbLit:
+    return printf("Instr::ldrsbLit\n");
  case Instr::swp:
     return printf("Instr::swp\n");
  case Instr::strex:

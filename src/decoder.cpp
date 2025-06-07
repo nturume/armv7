@@ -251,6 +251,33 @@ static Instr syncPrim(u32 word) {
   return Instr::undefined;
 }
 
+static Instr extraLoadStore(u32 word) {
+  u8 op2 = (word>>5)&0b11;
+  u8 Rn = (word>>16)&0b1111;
+  u8 op1 = (word>>20)&0b11111;
+  switch(op2){
+    case 1:{
+        if(!(op1&0b101)) return Instr::strhReg;
+        if((op1&0b101)==1) return Instr::ldrhReg;
+        if((op1&0b101)==0b100) return Instr::strhImm;
+        if((op1&0b101)==0b101 and Rn != 0xf) return Instr::ldrhImm;
+        if((op1&0b101)==0b101) return Instr::ldrhLit;
+        break;
+      }
+    case 2:{
+        if(!(op1&0b101)) return Instr::ldrdReg;
+        if((op1&0b101)==1) return Instr::ldrsbReg;
+        if((op1&0b101)==0b100 and Rn != 0xf) return Instr::ldrdImm;
+        if((op1&0b101)==0b100) return Instr::ldrdLit;
+        
+        if((op1&0b101)==0b101 and Rn != 0xf) return Instr::ldrsbImm;
+        if((op1&0b101)==0b101) return Instr::ldrsbLit;
+        break;
+      }
+  }
+  return Instr::undefined;
+}
+
 static Instr dataProcAndMisc(u32 word) {
   struct I {
     u32 _1 : 4;
@@ -280,7 +307,12 @@ static Instr dataProcAndMisc(u32 word) {
 
     if(!(op1&0b10000) and op2 == 0b1001) return mult(word);
     if((op1&0b10000) and op2 == 0b1001) return syncPrim(word);
-    
+    if((op1&0b10010) != 0b10 and (op2==0b1011  or (op2&0b1101)==0b1101)) {
+      return extraLoadStore(word);
+    }
+    if((op1&0b10011)==0b10 and (op2&0b1101)==0b1101) {
+      return extraLoadStore(word);
+    }
   } else {
   }
 
