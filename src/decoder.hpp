@@ -155,7 +155,6 @@ enum class Instr {
   bicReg,
   mvnReg,
 
-  
   andShiftedReg,
   eorShiftedReg,
   subShiftedReg,
@@ -232,68 +231,165 @@ enum class Instr {
   ldrdImm,
   ldrdLit,
   ldrsbImm,
-  ldrsbLit
+  ldrsbLit,
+
+  strht,
+  ldrht,
+  ldrsbt,
+  ldrsht,
+
+  andImm,
+  eorImm,
+  subImm,
+  adr,
+  rsbImm,
+  addImm,
+  adcImm,
+  sbcImm,
+  rscImm,
+  tstImm,
+  teqImm,
+  cmpImm,
+  cmnImm,
+  orrImm,
+  movImm,
+  bicImm,
+  mvnImm,
+
+  movImm16,
+  movt,
+
+  yield,
+  wfe,
+  wfi,
+  sev,
+  csdb,
+  dbg,
+  msrImmApp,
+  msrImmSys,
 };
 
 namespace Decoder {
 Instr decodeA(u32 instr);
 inline int printInstr(Instr instr) {
   switch (instr) {
- case Instr::strhReg:
+  case Instr::yield:
+    return printf("Instr::yield\n");
+  case Instr::wfe:
+    return printf("Instr::wfe\n");
+  case Instr::wfi:
+    return printf("Instr::wfi\n");
+  case Instr::sev:
+    return printf("Instr::sev\n");
+  case Instr::csdb:
+    return printf("Instr::csdb\n");
+  case Instr::dbg:
+    return printf("Instr::dbg\n");
+  case Instr::msrImmApp:
+    return printf("Instr::msrImmApp\n");
+  case Instr::movt:
+    return printf("Instr::movt\n");
+  case Instr::msrImmSys:
+    return printf("Instr::msrImmSys\n");
+  case Instr::movImm16:
+    return printf("Instr::movImm16\n");
+  case Instr::eorImm:
+    return printf("Instr::eorImm\n");
+  case Instr::subImm:
+    return printf("Instr::subImm\n");
+  case Instr::adr:
+    return printf("Instr::adr\n");
+  case Instr::rsbImm:
+    return printf("Instr::rsbImm\n");
+  case Instr::addImm:
+    return printf("Instr::addImm\n");
+  case Instr::adcImm:
+    return printf("Instr::adcImm\n");
+  case Instr::sbcImm:
+    return printf("Instr::sbcImm\n");
+  case Instr::rscImm:
+    return printf("Instr::rscImm\n");
+  case Instr::tstImm:
+    return printf("Instr::tstImm\n");
+  case Instr::teqImm:
+    return printf("Instr::teqImm\n");
+  case Instr::cmpImm:
+    return printf("Instr::cmpImm\n");
+  case Instr::cmnImm:
+    return printf("Instr::cmnImm\n");
+  case Instr::orrImm:
+    return printf("Instr::orrImm\n");
+  case Instr::movImm:
+    return printf("Instr::movImm\n");
+  case Instr::bicImm:
+    return printf("Instr::bicImm\n");
+  case Instr::mvnImm:
+    return printf("Instr::mvnImm\n");
+  case Instr::andImm:
+    return printf("Instr::andImm\n");
+  case Instr::strht:
+    return printf("Instr::strht\n");
+  case Instr::ldrht:
+    return printf("Instr::ldrht\n");
+  case Instr::ldrsbt:
+    return printf("Instr::ldrsbt\n");
+  case Instr::ldrsht:
+    return printf("Instr::ldrsht\n");
+  case Instr::strhReg:
     return printf("Instr::strhReg\n");
- case Instr::ldrhReg:
+  case Instr::ldrhReg:
     return printf("Instr::ldrhReg\n");
- case Instr::strhImm:
+  case Instr::strhImm:
     return printf("Instr::strhImm\n");
- case Instr::ldrhImm:
+  case Instr::ldrhImm:
     return printf("Instr::ldrhImm\n");
- case Instr::ldrhLit:
+  case Instr::ldrhLit:
     return printf("Instr::ldrhLit\n");
- case Instr::ldrdReg:
+  case Instr::ldrdReg:
     return printf("Instr::ldrdReg\n");
- case Instr::ldrsbReg:
+  case Instr::ldrsbReg:
     return printf("Instr::ldrsbReg\n");
- case Instr::ldrdImm:
+  case Instr::ldrdImm:
     return printf("Instr::ldrdImm\n");
- case Instr::ldrdLit:
+  case Instr::ldrdLit:
     return printf("Instr::ldrdLit\n");
- case Instr::ldrsbImm:
+  case Instr::ldrsbImm:
     return printf("Instr::ldrsbImm\n");
- case Instr::ldrsbLit:
+  case Instr::ldrsbLit:
     return printf("Instr::ldrsbLit\n");
- case Instr::swp:
+  case Instr::swp:
     return printf("Instr::swp\n");
- case Instr::strex:
+  case Instr::strex:
     return printf("Instr::strex\n");
- case Instr::ldrex:
+  case Instr::ldrex:
     return printf("Instr::ldrex\n");
- case Instr::strexd:
+  case Instr::strexd:
     return printf("Instr::strexd\n");
- case Instr::ldrexd:
+  case Instr::ldrexd:
     return printf("Instr::ldrexd\n");
- case Instr::strexb:
+  case Instr::strexb:
     return printf("Instr::strexb\n");
- case Instr::ldrexb:
+  case Instr::ldrexb:
     return printf("Instr::ldrexb\n");
- case Instr::strexh:
+  case Instr::strexh:
     return printf("Instr::strexh\n");
- case Instr::ldrexh:
+  case Instr::ldrexh:
     return printf("Instr::ldrexh\n");
- case Instr::mul:
+  case Instr::mul:
     return printf("Instr::mul\n");
- case Instr::mla:
+  case Instr::mla:
     return printf("Instr::mla\n");
- case Instr::umaal:
+  case Instr::umaal:
     return printf("Instr::umaal\n");
- case Instr::mls:
+  case Instr::mls:
     return printf("Instr::mls\n");
- case Instr::umull:
+  case Instr::umull:
     return printf("Instr::umull\n");
- case Instr::umlal:
+  case Instr::umlal:
     return printf("Instr::umlal\n");
- case Instr::smull:
+  case Instr::smull:
     return printf("Instr::smull\n");
- case Instr::smlal:
+  case Instr::smlal:
     return printf("Instr::smlal\n");
   case Instr::smlabb:
     return printf("Instr::smlabb\n");

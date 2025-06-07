@@ -39,18 +39,26 @@ static Instr halfMult(u32 word) {
 }
 
 static Instr mult(u32 word) {
-  u8 op = (word>>20)&0xf;
-  if(!(op&0b1110)) return Instr::mul;
-  if((op&0b1110)==0b10) return Instr::mla;
-  switch(op){
-    case 0b100: return Instr::umaal;
-    case 0b110: return Instr::mls;
+  u8 op = (word >> 20) & 0xf;
+  if (!(op & 0b1110))
+    return Instr::mul;
+  if ((op & 0b1110) == 0b10)
+    return Instr::mla;
+  switch (op) {
+  case 0b100:
+    return Instr::umaal;
+  case 0b110:
+    return Instr::mls;
   }
-  switch(op>>1){
-    case 0b100: return Instr::umull;
-    case 0b101: return Instr::umlal;
-    case 0b110: return Instr::smull;
-    case 0b111: return Instr::smlal;
+  switch (op >> 1) {
+  case 0b100:
+    return Instr::umull;
+  case 0b101:
+    return Instr::umlal;
+  case 0b110:
+    return Instr::smull;
+  case 0b111:
+    return Instr::smlal;
   }
   return Instr::undefined;
 }
@@ -236,44 +244,162 @@ static Instr dataProcReg(u32 word) {
 }
 
 static Instr syncPrim(u32 word) {
-  u8 op = (word>>20)&0xf;
-  if((op&0b1011)==0) return Instr::swp;
-  switch(op){
-    case 0b1000: return Instr::strex;
-    case 0b1001: return Instr::ldrex;
-    case 0b1010: return Instr::strexd;
-    case 0b1011: return Instr::ldrexd;
-    case 0b1100: return Instr::strexb;
-    case 0b1101: return Instr::ldrexb;
-    case 0b1110: return Instr::strexh;
-    case 0b1111: return Instr::ldrexh;
+  u8 op = (word >> 20) & 0xf;
+  if ((op & 0b1011) == 0)
+    return Instr::swp;
+  switch (op) {
+  case 0b1000:
+    return Instr::strex;
+  case 0b1001:
+    return Instr::ldrex;
+  case 0b1010:
+    return Instr::strexd;
+  case 0b1011:
+    return Instr::ldrexd;
+  case 0b1100:
+    return Instr::strexb;
+  case 0b1101:
+    return Instr::ldrexb;
+  case 0b1110:
+    return Instr::strexh;
+  case 0b1111:
+    return Instr::ldrexh;
   }
   return Instr::undefined;
 }
 
 static Instr extraLoadStore(u32 word) {
-  u8 op2 = (word>>5)&0b11;
-  u8 Rn = (word>>16)&0b1111;
-  u8 op1 = (word>>20)&0b11111;
-  switch(op2){
-    case 1:{
-        if(!(op1&0b101)) return Instr::strhReg;
-        if((op1&0b101)==1) return Instr::ldrhReg;
-        if((op1&0b101)==0b100) return Instr::strhImm;
-        if((op1&0b101)==0b101 and Rn != 0xf) return Instr::ldrhImm;
-        if((op1&0b101)==0b101) return Instr::ldrhLit;
-        break;
-      }
-    case 2:{
-        if(!(op1&0b101)) return Instr::ldrdReg;
-        if((op1&0b101)==1) return Instr::ldrsbReg;
-        if((op1&0b101)==0b100 and Rn != 0xf) return Instr::ldrdImm;
-        if((op1&0b101)==0b100) return Instr::ldrdLit;
-        
-        if((op1&0b101)==0b101 and Rn != 0xf) return Instr::ldrsbImm;
-        if((op1&0b101)==0b101) return Instr::ldrsbLit;
-        break;
-      }
+  u8 op2 = (word >> 5) & 0b11;
+  u8 Rn = (word >> 16) & 0b1111;
+  u8 op1 = (word >> 20) & 0b11111;
+  switch (op2) {
+  case 1: {
+    if (!(op1 & 0b101))
+      return Instr::strhReg;
+    if ((op1 & 0b101) == 1)
+      return Instr::ldrhReg;
+    if ((op1 & 0b101) == 0b100)
+      return Instr::strhImm;
+    if ((op1 & 0b101) == 0b101 and Rn != 0xf)
+      return Instr::ldrhImm;
+    if ((op1 & 0b101) == 0b101)
+      return Instr::ldrhLit;
+    break;
+  }
+  case 2: {
+    if (!(op1 & 0b101))
+      return Instr::ldrdReg;
+    if ((op1 & 0b101) == 1)
+      return Instr::ldrsbReg;
+    if ((op1 & 0b101) == 0b100 and Rn != 0xf)
+      return Instr::ldrdImm;
+    if ((op1 & 0b101) == 0b100)
+      return Instr::ldrdLit;
+
+    if ((op1 & 0b101) == 0b101 and Rn != 0xf)
+      return Instr::ldrsbImm;
+    if ((op1 & 0b101) == 0b101)
+      return Instr::ldrsbLit;
+    break;
+  }
+  }
+  return Instr::undefined;
+}
+
+static Instr extraLoadStoreUnpriv(u32 word) {
+  u8 op2 = (word >> 5) & 0b11;
+  bool op = (word & (1 << 20)) != 0;
+  if (op2 == 1 and !op)
+    return Instr::strht;
+  if (op2 == 1)
+    return Instr::ldrht;
+  if (op2 == 0b10 and op)
+    return Instr::ldrsbt;
+  if (op2 == 0b11 and op)
+    return Instr::ldrsht;
+  return Instr::undefined;
+}
+
+static Instr dataProcImm(u32 word) {
+  u8 op = (word >> 20) & 0b11111;
+  u8 Rn = (word >> 16) & 0b1111;
+  switch (op >> 1) {
+  case 0:
+    return Instr::andImm;
+  case 1:
+    return Instr::eorImm;
+  case 2:
+    if (Rn != 0xf)
+      return Instr::subImm;
+    else
+      return Instr::adr;
+  case 3:
+    return Instr::rsbImm;
+  case 4:
+    if (Rn != 0xf)
+      return Instr::addImm;
+    else
+      return Instr::adr;
+  case 5:
+    return Instr::adcImm;
+  case 6:
+    return Instr::sbcImm;
+  case 7:
+    return Instr::rscImm;
+  }
+  switch (op) {
+  case 0b10001:
+    return Instr::tstImm;
+  case 0b10011:
+    return Instr::teqImm;
+  case 0b10101:
+    return Instr::cmpImm;
+  case 0b10111:
+    return Instr::cmnImm;
+  }
+  switch (op >> 1) {
+  case 0b1100:
+    return Instr::orrImm;
+  case 0b1101:
+    return Instr::movImm;
+  case 0b1110:
+    return Instr::bicImm;
+  case 0b1111:
+    return Instr::mvnImm;
+  }
+  return Instr::undefined;
+}
+
+static Instr hints(u32 word) {
+  bool op = (word & (1 << 22)) != 0;
+  u8 op1 = (word >> 16) & 0b1111;
+  u8 op2 = word;
+  if (!op) {
+    if (!op1) {
+      if (!op2)
+        return Instr::nop;
+      if (op2 == 1)
+        return Instr::yield;
+      if (op2 == 2)
+        return Instr::wfe;
+      if (op2 == 3)
+        return Instr::wfi;
+      if (op2 == 4)
+        return Instr::sev;
+      if (op2 == 0b10100)
+        return Instr::csdb;
+      if ((op2 & 0b11110000) == 0b11110000)
+        return Instr::dbg;
+    }
+
+    if (op1 == 0b100 or op1 == 0b1000 or op1 == 0b1100)
+      return Instr::msrImmApp;
+    if ((op1 & 0b11) == 0b10)
+      return Instr::msrImmSys;
+    if ((op1 & 0b10))
+      return Instr::msrImmSys;
+  } else {
+    return Instr::msrImmSys;
   }
   return Instr::undefined;
 }
@@ -305,15 +431,31 @@ static Instr dataProcAndMisc(u32 word) {
       return halfMult(word);
     }
 
-    if(!(op1&0b10000) and op2 == 0b1001) return mult(word);
-    if((op1&0b10000) and op2 == 0b1001) return syncPrim(word);
-    if((op1&0b10010) != 0b10 and (op2==0b1011  or (op2&0b1101)==0b1101)) {
+    if (!(op1 & 0b10000) and op2 == 0b1001)
+      return mult(word);
+    if ((op1 & 0b10000) and op2 == 0b1001)
+      return syncPrim(word);
+    if ((op1 & 0b10010) != 0b10 and
+        (op2 == 0b1011 or (op2 & 0b1101) == 0b1101)) {
       return extraLoadStore(word);
     }
-    if((op1&0b10011)==0b10 and (op2&0b1101)==0b1101) {
+    if ((op1 & 0b10011) == 0b10 and (op2 & 0b1101) == 0b1101) {
       return extraLoadStore(word);
     }
+
+    if ((op1 & 0b10010) == 0b10 and op2 == 0b1011)
+      return extraLoadStoreUnpriv(word);
+    if ((op1 & 0b10011) == 0b11 and (op2 & 0b1101) == 0b1101)
+      return extraLoadStoreUnpriv(word);
   } else {
+    if ((op1 & 0b11001) != 0b10000)
+      return dataProcImm(word);
+    if (op1 == 0b10000)
+      return Instr::movImm16;
+    if (op1 == 0b10100)
+      return Instr::movt;
+    if ((op1 & 0b11011) == 0b10010)
+      return hints(word);
   }
 
   return Instr::undefined;

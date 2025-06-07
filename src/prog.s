@@ -1,5 +1,4 @@
 .section .text
 .globl _start
 _start:
-
-ldrsb r0, .
+msr apsr_nzcvq, #1
