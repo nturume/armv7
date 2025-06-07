@@ -153,13 +153,72 @@ enum class Instr {
   rrx,
   rorImm,
   bicReg,
-  mvnReg
+  mvnReg,
+
+  
+  andShiftedReg,
+  eorShiftedReg,
+  subShiftedReg,
+  rsbShiftedReg,
+  addShiftedReg,
+  adcShiftedReg,
+  sbcShiftedReg,
+  rscShiftedReg,
+  tstShiftedReg,
+  teqShiftedReg,
+  cmpShiftedReg,
+  cmnShiftedReg,
+  orrShiftedReg,
+  lslReg,
+  lsrReg,
+  asrReg,
+  rorReg,
+  bicShiftedReg,
+  mvnShiftedReg,
 };
 
 namespace Decoder {
 Instr decodeA(u32 instr);
 inline int printInstr(Instr instr) {
   switch (instr) {
+  case Instr::orrShiftedReg:
+    return printf("Instr::orrShiftedReg\n");
+  case Instr::lslReg:
+    return printf("Instr::lslReg\n");
+  case Instr::lsrReg:
+    return printf("Instr::lsrReg\n");
+  case Instr::asrReg:
+    return printf("Instr::asrReg\n");
+  case Instr::rorReg:
+    return printf("Instr::rorReg\n");
+  case Instr::bicShiftedReg:
+    return printf("Instr::bicShiftedReg\n");
+  case Instr::mvnShiftedReg:
+    return printf("Instr::mvnShiftedReg\n");
+  case Instr::eorShiftedReg:
+    return printf("Instr::eorShiftedReg\n");
+  case Instr::subShiftedReg:
+    return printf("Instr::subShiftedReg\n");
+  case Instr::rsbShiftedReg:
+    return printf("Instr::rsbShiftedReg\n");
+  case Instr::addShiftedReg:
+    return printf("Instr::addShiftedReg\n");
+  case Instr::adcShiftedReg:
+    return printf("Instr::adcShiftedReg\n");
+  case Instr::sbcShiftedReg:
+    return printf("Instr::sbcShiftedReg\n");
+  case Instr::rscShiftedReg:
+    return printf("Instr::rscShiftedReg\n");
+  case Instr::tstShiftedReg:
+    return printf("Instr::tstShiftedReg\n");
+  case Instr::teqShiftedReg:
+    return printf("Instr::teqShiftedReg\n");
+  case Instr::cmpShiftedReg:
+    return printf("Instr::cmpShiftedReg\n");
+  case Instr::cmnShiftedReg:
+    return printf("Instr::cmnShiftedReg\n");
+  case Instr::andShiftedReg:
+    return printf("Instr::andShiftedReg\n");
   case Instr::asrImm:
     return printf("Instr::asrImm\n");
   case Instr::andReg:

@@ -1,4 +1,4 @@
 .section .text
 .globl _start
 _start:
-mvn r0, r0
+bic  r0, r0, lsl r0

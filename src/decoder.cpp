@@ -2,6 +2,48 @@
 #include <cstdio>
 
 namespace Decoder {
+static Instr misc(u32 word) {
+  return Instr::undefined;
+}
+
+static Instr dataProcShiftedReg(u32 word) {
+  struct I{
+    u32 _1:5;
+    u32 op2: 2;
+    u32 _2: 13;
+    u32 op1: 5;
+    u32 _3: 7;
+  };
+  I*i = reinterpret_cast<I*>(&word);
+  u8 op2 = i->op2;
+  u8 op = i->op1;
+  if(!(op&0b11110)) return Instr::andShiftedReg;
+  if((op&0b11110)==0b10) return Instr::eorShiftedReg;
+  if((op&0b11110)==0b100) return Instr::subShiftedReg;
+  if((op&0b11110)==0b110) return Instr::rsbShiftedReg;
+  if((op&0b11110)==0b1000) return Instr::addShiftedReg;
+  if((op&0b11110)==0b1010) return Instr::adcShiftedReg;
+  if((op&0b11110)==0b1100) return Instr::sbcShiftedReg;
+  if((op&0b11110)==0b1110) return Instr::rscShiftedReg;
+
+  if(op==0b10001) return Instr::tstShiftedReg;
+  if(op==0b10011) return Instr::teqShiftedReg;
+  if(op==0b10101) return Instr::cmpShiftedReg;
+  if(op==0b10111) return Instr::cmnShiftedReg;
+
+  if((op&0b11110)==0b11000) return Instr::orrShiftedReg;
+
+  if((op&0b11110)==0b11010) {
+    if(!op2) return Instr::lslReg;
+    if(op2==1) return Instr::lsrReg;
+    if(op2==0b10) return Instr::asrReg;
+    if(op2==0b11) return Instr::rorReg;
+  }
+
+  if((op&0b11110)==0b11100) return Instr::bicShiftedReg;
+  if((op&0b11110)==0b11110) return Instr::mvnShiftedReg;
+  return Instr::undefined;
+}
 static Instr dataProcReg(u32 word) {
   struct I{
     u32 _1:5;
@@ -59,10 +101,15 @@ static Instr dataProcAndMisc(u32 word) {
   u8 op = i->op;
   u8 op1 = i->op;
   u8 op2 = i->op2;
-
   if(!op) {
     if((op1&0b11001)!=0b10000 and !(op2&1)) {
       return dataProcReg(word);
+    }
+    if((op1&0b11001)!=0b10000 and (op2&0b1001)==1) {
+      return dataProcShiftedReg(word);
+    }
+    if((op1&0b11001)==0b10000 and (op2&0b1000)==0) {
+      return misc(word);
     }
   } else {
     
