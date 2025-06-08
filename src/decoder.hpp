@@ -1,9 +1,10 @@
 
 #pragma once
 #include "./stuff.hpp"
+#include <sys/types.h>
 
 enum class Instr {
-  src,
+  srs,
   rfe,
   blx,
   bl,
@@ -97,6 +98,27 @@ enum class Instr {
   shsub16,
   shadd8,
   shsub8,
+  
+  uadd16,
+  uasx,
+  usax,
+  usub16,
+  uadd8,
+  usub8,
+
+  uqadd16,
+  uqasx,
+  uqsax,
+  uqsub16,
+  uqadd8,
+  uqsub8,
+
+  uhadd16,
+  uhasx,
+  uhsax,
+  uhsub16,
+  uhadd8,
+  uhsub8,
 
   pkh,
   sxtab16,
@@ -178,7 +200,7 @@ enum class Instr {
   mrsBanked,
   msrBanked,
   mrs,
-  msr,
+  // msr,
   msrApp,
   msrSys,
 
@@ -234,6 +256,7 @@ enum class Instr {
   ldrsbLit,
 
   strht,
+  strht2,
   ldrht,
   ldrsbt,
   ldrsht,
@@ -259,6 +282,12 @@ enum class Instr {
   movImm16,
   movt,
 
+  strd,
+  ldrsh,
+  strdImm,
+  ldrshImm,
+  ldrshLit,
+
   yield,
   wfe,
   wfi,
@@ -270,9 +299,20 @@ enum class Instr {
 };
 
 namespace Decoder {
+void test();
 Instr decodeA(u32 instr);
 inline int printInstr(Instr instr) {
   switch (instr) {
+  case Instr::strd:
+    return printf("Instr::strd\n");
+  case Instr::ldrsh:
+    return printf("Instr::ldrsh\n");
+  case Instr::strdImm:
+    return printf("Instr::strdImm\n");
+  case Instr::ldrshImm:
+    return printf("Instr::ldrshImm\n");
+  case Instr::ldrshLit:
+    return printf("Instr::ldrshLit\n");
   case Instr::yield:
     return printf("Instr::yield\n");
   case Instr::wfe:
@@ -329,6 +369,8 @@ inline int printInstr(Instr instr) {
     return printf("Instr::andImm\n");
   case Instr::strht:
     return printf("Instr::strht\n");
+  case Instr::strht2:
+    return printf("Instr::strht2\n");
   case Instr::ldrht:
     return printf("Instr::ldrht\n");
   case Instr::ldrsbt:
@@ -431,8 +473,8 @@ inline int printInstr(Instr instr) {
     return printf("Instr::msrBanked\n");
   case Instr::mrs:
     return printf("Instr::mrs\n");
-  case Instr::msr:
-    return printf("Instr::msr\n");
+  // case Instr::msr:
+  //   return printf("Instr::msr\n");
   case Instr::msrApp:
     return printf("Instr::msrApp\n");
   case Instr::msrSys:
@@ -680,8 +722,8 @@ inline int printInstr(Instr instr) {
     return printf("Instr::ldmda\n");
   case Instr::stmda:
     return printf("Instr::stmda\n");
-  case Instr::src:
-    return printf("Instr::src\n");
+  case Instr::srs:
+    return printf("Instr::srs\n");
   case Instr::rfe:
     return printf("Instr::rfe\n");
   case Instr::bl:
@@ -768,6 +810,42 @@ inline int printInstr(Instr instr) {
     return printf("Instr::ldrbt1\n");
   case Instr::ldrbt2:
     return printf("Instr::ldrbt2\n");
+  case Instr::uadd16:
+    return printf("Instr::uadd16\n");
+  case Instr::uasx:
+    return printf("Instr::uasx\n");
+  case Instr::usax:
+    return printf("Instr::usax\n");
+  case Instr::usub16:
+    return printf("Instr::usub16\n");
+  case Instr::uadd8:
+    return printf("Instr::uadd8\n");
+  case Instr::usub8:
+    return printf("Instr::usub8\n");
+  case Instr::uqadd16:
+    return printf("Instr::uqadd16\n");
+  case Instr::uqasx:
+    return printf("Instr::uqasx\n");
+  case Instr::uqsax:
+    return printf("Instr::uqsax\n");
+  case Instr::uqsub16:
+    return printf("Instr::uqsub16\n");
+  case Instr::uqadd8:
+    return printf("Instr::uqadd8\n");
+  case Instr::uqsub8:
+    return printf("Instr::uqsub8\n");
+  case Instr::uhadd16:
+    return printf("Instr::uhadd16\n");
+  case Instr::uhasx:
+    return printf("Instr::uhasx\n");
+  case Instr::uhsax:
+    return printf("Instr::uhsax\n");
+  case Instr::uhsub16:
+    return printf("Instr::uhsub16\n");
+  case Instr::uhadd8:
+    return printf("Instr::uhadd8\n");
+  case Instr::uhsub8:
+    return printf("Instr::uhsub8\n");
   }
 
   return printf("Unknown instruction\n");

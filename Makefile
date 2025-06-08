@@ -7,9 +7,9 @@ endif
 
 
 ifeq ($(T), 1)
-CFLAGS = -Wall -Wextra -lc -DTESTING
+CFLAGS = -Wall -Wextra -lc -std=c++20 -DTESTING
 else
-CFLAGS = -Wall -Wextra -lc
+CFLAGS = -Wall -Wextra -lc -std=c++20
 endif
 
 

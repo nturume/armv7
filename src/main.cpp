@@ -10,15 +10,17 @@ Memory<1024> m;
 
 #ifndef TESTING
 fn main() -> i32 {
-  Elf elf("./build/elf");
-  Elf::ProgramHeaderIterator iter(elf.file, elf.header);
+  Decoder::test();
+    
+  //       Elf elf("./build/elf");
+  // Elf::ProgramHeaderIterator iter(elf.file, elf.header);
 
-  m.loadElf(iter);
+  // m.loadElf(iter);
 
-  u32 instr = m.readBE<u32>(elf.header.e_entry);
+  // u32 instr = m.readBE<u32>(elf.header.e_entry);
 
-  printf("Instruction: %x\n", instr);
-  Decoder::decodeA(instr);
+  // printf("Instruction: %x\n", instr);
+  // Decoder::decodeA(instr);
   // Elf::Ph ph = {};
 
   // if(iter.next(&ph) == nullptr) {
