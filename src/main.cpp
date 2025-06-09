@@ -10,7 +10,7 @@ Memory<1024> m;
 
 #ifndef TESTING
 fn main() -> i32 {
-  Decoder::test();
+  // Decoder::test();
     
   //       Elf elf("./build/elf");
   // Elf::ProgramHeaderIterator iter(elf.file, elf.header);
@@ -31,6 +31,7 @@ fn main() -> i32 {
 
 int main() {
   Memory<64>::test();
+  Decoder::test();
   return 0;
 }
 

@@ -65,22 +65,24 @@ static Instr mult(u32 word) {
 }
 
 static Instr misc(u32 word) {
-  struct I {
-    u32 _1 : 4;
-    u32 op2 : 3;
-    u32 _2 : 2;
-    u32 B : 1;
-    u32 _3 : 6;
-    u32 op1 : 4;
-    u32 _4 : 1;
-    u32 op : 2;
-    u32 _5 : 9;
-  };
-  I *i = reinterpret_cast<I *>(&word);
-  u8 op2 = i->op2;
-  u8 op1 = i->op1;
-  u8 op = i->op;
-  u8 B = i->B;
+  union {
+    struct {
+      u32 _1 : 4;
+      u32 op2 : 3;
+      u32 _2 : 2;
+      u32 B : 1;
+      u32 _3 : 6;
+      u32 op1 : 4;
+      u32 _4 : 1;
+      u32 op : 2;
+      u32 _5 : 9;
+    } b;
+    u32 v;
+  } i = {.v = word};
+  u8 op2 = i.b.op2;
+  u8 op1 = i.b.op1;
+  u8 op = i.b.op;
+  u8 B = i.b.B;
   if (op2 == 0) {
     if (B and !(op & 1))
       return Instr::mrsBanked;
@@ -123,16 +125,18 @@ static Instr misc(u32 word) {
 }
 
 static Instr dataProcShiftedReg(u32 word) {
-  struct I {
-    u32 _1 : 5;
-    u32 op2 : 2;
-    u32 _2 : 13;
-    u32 op1 : 5;
-    u32 _3 : 7;
-  };
-  I *i = reinterpret_cast<I *>(&word);
-  u8 op2 = i->op2;
-  u8 op = i->op1;
+  union {
+    struct {
+      u32 _1 : 5;
+      u32 op2 : 2;
+      u32 _2 : 13;
+      u32 op1 : 5;
+      u32 _3 : 7;
+    } b;
+    u32 v;
+  } i = {.v = word};
+  u8 op2 = i.b.op2;
+  u8 op = i.b.op1;
   if (!(op & 0b11110))
     return Instr::andShiftedReg;
   if ((op & 0b11110) == 0b10)
@@ -180,18 +184,20 @@ static Instr dataProcShiftedReg(u32 word) {
   return Instr::undefined;
 }
 static Instr dataProcReg(u32 word) {
-  struct I {
-    u32 _1 : 5;
-    u32 op2 : 2;
-    u32 imm5 : 5;
-    u32 _2 : 8;
-    u32 op : 5;
-    u32 _3 : 7;
-  };
-  I *i = reinterpret_cast<I *>(&word);
-  u8 op2 = i->op2;
-  u8 op = i->op;
-  u8 imm5 = i->imm5;
+  union {
+    struct {
+      u32 _1 : 5;
+      u32 op2 : 2;
+      u32 imm5 : 5;
+      u32 _2 : 8;
+      u32 op : 5;
+      u32 _3 : 7;
+    } b;
+    u32 v;
+  } i = {.v = word};
+  u8 op2 = i.b.op2;
+  u8 op = i.b.op;
+  u8 imm5 = i.b.imm5;
   if (!(op & 0b11110))
     return Instr::andReg;
   if ((op & 0b11110) == 0b10)
@@ -323,9 +329,10 @@ static Instr extraLoadStore(u32 word) {
 static Instr extraLoadStoreUnpriv(u32 word) {
   u8 op2 = (word >> 5) & 0b11;
   bool op = (word & (1 << 20)) != 0;
-  if (op2 == 1 and !op and (word&(1<<22)))
+  if (op2 == 1 and !op and (word & (1 << 22)))
     return Instr::strht;
-  if(op2==1 and !op) return Instr::strht2;
+  if (op2 == 1 and !op)
+    return Instr::strht2;
   if (op2 == 1)
     return Instr::ldrht;
   if (op2 == 0b10 and op)
@@ -420,18 +427,20 @@ static Instr hints(u32 word) {
 }
 
 static Instr dataProcAndMisc(u32 word) {
-  struct I {
-    u32 _1 : 4;
-    u32 op2 : 4;
-    u32 _2 : 12;
-    u32 op1 : 5;
-    u32 op : 1;
-    u32 _3 : 6;
-  };
-  I *i = reinterpret_cast<I *>(&word);
-  u8 op = i->op;
-  u8 op1 = i->op1;
-  u8 op2 = i->op2;
+  union {
+    struct {
+      u32 _1 : 4;
+      u32 op2 : 4;
+      u32 _2 : 12;
+      u32 op1 : 5;
+      u32 op : 1;
+      u32 _3 : 6;
+    } b;
+    u32 v;
+  } i = {.v = word};
+  u8 op = i.b.op;
+  u8 op1 = i.b.op1;
+  u8 op2 = i.b.op2;
   if (!op) {
     if ((op1 & 0b11001) != 0b10000 and !(op2 & 1)) {
       return dataProcReg(word);
@@ -477,23 +486,24 @@ static Instr dataProcAndMisc(u32 word) {
 }
 
 static Instr loadStoreWordAndUnsignedByte(u32 word) {
-  struct __attribute__((packed)) I {
-    u32 _1 : 4;
-    u32 B : 1;
-    u32 _2 : 11;
-    // half
-    u32 Rn : 4;
-    u32 op1 : 5;
-    u32 A : 1;
-    u32 _3 : 2;
-    u32 cond : 4;
-  };
-  I *instr = reinterpret_cast<I *>(&word);
-  bool B = instr->B;
-  bool A = instr->A;
-  u8 Rn = instr->Rn;
-  u8 op1 = instr->op1;
-
+  union {
+    struct {
+      u32 _1 : 4;
+      u32 B : 1;
+      u32 _2 : 11;
+      // half
+      u32 Rn : 4;
+      u32 op1 : 5;
+      u32 A : 1;
+      u32 _3 : 2;
+      u32 cond : 4;
+    } b;
+    u32 v;
+  } instr = {.v = word};
+  bool B = instr.b.B;
+  bool A = instr.b.A;
+  u8 Rn = instr.b.Rn;
+  u8 op1 = instr.b.op1;
   if (A) {
     if (!(op1 & 0b101) and !B and op1 != 0b1010 and op1 != 0b10) {
       return Instr::strReg;
@@ -551,21 +561,21 @@ static Instr loadStoreWordAndUnsignedByte(u32 word) {
   return Instr::undefined;
 }
 
-
 static Instr parallelAddSub(u32 word) {
-  struct I {
-    u32 _1 : 5;
-    u32 op2 : 3;
-    u32 _2 : 12;
-    u32 op1 : 2;
-    u32 _3 : 6;
-    u32 cond : 4;
-  };
-
-  I *i = reinterpret_cast<I *>(&word);
-  switch (i->op1) {
+  union {
+    struct {
+      u32 _1 : 5;
+      u32 op2 : 3;
+      u32 _2 : 12;
+      u32 op1 : 2;
+      u32 _3 : 6;
+      u32 cond : 4;
+    } b;
+    u32 v;
+  } i = {.v = word};
+  switch (i.b.op1) {
   case 0b1:
-    switch (i->op2) {
+    switch (i.b.op2) {
     case 0:
       return Instr::sadd16;
     case 1:
@@ -581,7 +591,7 @@ static Instr parallelAddSub(u32 word) {
     }
     break;
   case 0b10:
-    switch (i->op2) {
+    switch (i.b.op2) {
     case 0:
       return Instr::qadd16;
     case 1:
@@ -597,7 +607,7 @@ static Instr parallelAddSub(u32 word) {
     }
     break;
   case 0b11:
-    switch (i->op2) {
+    switch (i.b.op2) {
     case 0:
       return Instr::shadd16;
     case 1:
@@ -617,22 +627,21 @@ static Instr parallelAddSub(u32 word) {
   return Instr::undefined;
 }
 
-
-
 static Instr parallelAddSubUnsigned(u32 word) {
-  struct I {
-    u32 _1 : 5;
-    u32 op2 : 3;
-    u32 _2 : 12;
-    u32 op1 : 2;
-    u32 _3 : 6;
-    u32 cond : 4;
-  };
-
-  I *i = reinterpret_cast<I *>(&word);
-  switch (i->op1) {
+  union {
+    struct {
+      u32 _1 : 5;
+      u32 op2 : 3;
+      u32 _2 : 12;
+      u32 op1 : 2;
+      u32 _3 : 6;
+      u32 cond : 4;
+    } b;
+    u32 v;
+  } i = {.v = word};
+  switch (i.b.op1) {
   case 0b1:
-    switch (i->op2) {
+    switch (i.b.op2) {
     case 0:
       return Instr::uadd16;
     case 1:
@@ -648,7 +657,7 @@ static Instr parallelAddSubUnsigned(u32 word) {
     }
     break;
   case 0b10:
-    switch (i->op2) {
+    switch (i.b.op2) {
     case 0:
       return Instr::uqadd16;
     case 1:
@@ -664,7 +673,7 @@ static Instr parallelAddSubUnsigned(u32 word) {
     }
     break;
   case 0b11:
-    switch (i->op2) {
+    switch (i.b.op2) {
     case 0:
       return Instr::uhadd16;
     case 1:
@@ -685,21 +694,21 @@ static Instr parallelAddSubUnsigned(u32 word) {
 }
 
 static Instr packingUnpacking(u32 word) {
-  struct I {
-    u32 _1 : 5;
-    u32 op2 : 3;
-    u32 _2 : 8;
-    u32 A : 4;
-    u32 op1 : 3;
-    u32 _3 : 5;
-    u32 cond : 4;
-  };
-  I *i = reinterpret_cast<I *>(&word);
-
-  u8 op1 = i->op1;
-  u8 op2 = i->op2;
-  u8 A = i->A;
-
+  union {
+    struct {
+      u32 _1 : 5;
+      u32 op2 : 3;
+      u32 _2 : 8;
+      u32 A : 4;
+      u32 op1 : 3;
+      u32 _3 : 5;
+      u32 cond : 4;
+    } b;
+    u32 v;
+  } i = {.v = word};
+  u8 op1 = i.b.op1;
+  u8 op2 = i.b.op2;
+  u8 A = i.b.A;
   if (op1 == 0) {
     if (!(op2 & 1))
       return Instr::pkh;
@@ -767,20 +776,21 @@ static Instr packingUnpacking(u32 word) {
 }
 
 static Instr signedMultDiv(u32 word) {
-  struct I {
-    u32 _1 : 5;
-    u32 op2 : 3;
-    u32 _2 : 4;
-    u32 A : 4;
-    u32 _3 : 4;
-    u32 op1 : 3;
-    u32 _4 : 9;
-  };
-  I *i = reinterpret_cast<I *>(&word);
-  u8 op2 = i->op2;
-  u8 A = i->A;
-  u8 op1 = i->op1;
-
+  union {
+    struct {
+      u32 _1 : 5;
+      u32 op2 : 3;
+      u32 _2 : 4;
+      u32 A : 4;
+      u32 _3 : 4;
+      u32 op1 : 3;
+      u32 _4 : 9;
+    } b;
+    u32 v;
+  } i = {.v = word};
+  u8 op2 = i.b.op2;
+  u8 A = i.b.A;
+  u8 op1 = i.b.op1;
   if (op1 == 0) {
     if ((op2 & 0b110) == 0 and A != 0xf)
       return Instr::smlad;
@@ -815,23 +825,24 @@ static Instr signedMultDiv(u32 word) {
 }
 
 static Instr media(u32 word) {
-  struct __attribute__((packed)) I {
-    u32 Rn : 4;
-    u32 _1 : 1;
-    u32 op2 : 3;
-    u32 _2 : 4;
-    u32 Rd : 4;
-    u32 _3 : 4;
-    u32 op1 : 5;
-    u32 _4 : 3;
-    u32 cond : 4;
-  };
-
-  I *i = reinterpret_cast<I *>(&word);
-  u8 Rn = i->Rn;
-  u8 op2 = i->op2;
-  u8 Rd = i->Rd;
-  u8 op1 = i->op1;
+  union {
+    struct {
+      u32 Rn : 4;
+      u32 _1 : 1;
+      u32 op2 : 3;
+      u32 _2 : 4;
+      u32 Rd : 4;
+      u32 _3 : 4;
+      u32 op1 : 5;
+      u32 _4 : 3;
+      u32 cond : 4;
+    } b;
+    u32 v;
+  } i = {.v = word};
+  u8 Rn = i.b.Rn;
+  u8 op2 = i.b.op2;
+  u8 Rd = i.b.Rd;
+  u8 op1 = i.b.op1;
 
   if ((op1 & 0b11100) == 0) {
     return parallelAddSub(word);
@@ -873,19 +884,20 @@ static Instr media(u32 word) {
 }
 
 static Instr branchAndBlockDataTransfer(u32 word) {
-  struct __attribute__((packed)) I {
-    u32 _1 : 15;
-    u32 R : 1;
-    u32 Rn : 4;
-    u32 op : 6;
-    u32 _2 : 2;
-    u32 cond : 4;
-  };
-  I *i = reinterpret_cast<I *>(&word);
-  u8 R = i->R;
-  u8 op = i->op;
-  u8 Rn = i->Rn;
-
+  union {
+    struct {
+      u32 _1 : 15;
+      u32 R : 1;
+      u32 Rn : 4;
+      u32 op : 6;
+      u32 _2 : 2;
+      u32 cond : 4;
+    } b;
+    u32 v;
+  } i = {.v = word};
+  u8 R = i.b.R;
+  u8 op = i.b.op;
+  u8 Rn = i.b.Rn;
   if (op == 0b10 or op == 0b0)
     return Instr::stmda;
   if (op == 0b11 or op == 0b1)
@@ -919,7 +931,7 @@ static Instr branchAndBlockDataTransfer(u32 word) {
   if ((op & 0b110000) == 0b100000)
     return Instr::b;
   if ((op & 0b110000) == 0b110000) {
-    if (i->cond == 0xf)
+    if (i.b.cond == 0xf)
       return Instr::blx; // unreachable
     return Instr::bl;
   }
@@ -927,22 +939,24 @@ static Instr branchAndBlockDataTransfer(u32 word) {
 }
 
 static Instr coprocessorAndSVC(u32 word) {
-  struct __attribute__((packed)) I {
-    u32 _1 : 4;
-    u32 op : 1;
-    u32 _2 : 3;
-    u32 coproc : 4;
-    u32 _3 : 4;
-    u32 Rn : 4;
-    u32 op1 : 6;
-    u32 _4 : 2;
-    u32 cond : 4;
-  };
-  I *i = reinterpret_cast<I *>(&word);
-  u8 coproc = i->coproc;
-  u8 op1 = i->op1;
-  u8 op = i->op;
-  u8 Rn = i->Rn;
+  union {
+    struct {
+      u32 _1 : 4;
+      u32 op : 1;
+      u32 _2 : 3;
+      u32 coproc : 4;
+      u32 _3 : 4;
+      u32 Rn : 4;
+      u32 op1 : 6;
+      u32 _4 : 2;
+      u32 cond : 4;
+    } b;
+    u32 v;
+  } i = {.v = word};
+  u8 coproc = i.b.coproc;
+  u8 op1 = i.b.op1;
+  u8 op = i.b.op;
+  u8 Rn = i.b.Rn;
   if (op1 == 0b0 or op1 == 0b1)
     return Instr::undefined;
   if ((op1 & 0b110000) == 0b110000)
@@ -975,65 +989,72 @@ static Instr coprocessorAndSVC(u32 word) {
   return Instr::undefined;
 }
 
-struct __attribute__((packed)) Gen {
-  u32 _1 : 4;
-  u32 op : 1;
-  u32 _2 : 20;
-  u32 op1 : 3;
-  u32 cond : 4;
+union Gen {
+  struct {
+    u32 _1 : 4;
+    u32 op : 1;
+    u32 _2 : 20;
+    u32 op1 : 3;
+    u32 cond : 4;
+  } b;
+  u32 v;
 };
 
 static_assert(sizeof(Gen) == 4, "");
 
 static Instr conditional(Gen instr) {
-  switch (instr.op1) {
+  switch (instr.b.op1) {
   case 0b10:
-    return loadStoreWordAndUnsignedByte(*reinterpret_cast<u32 *>(&instr));
+    return loadStoreWordAndUnsignedByte(instr.v);
   case 0b11:
-    switch (instr.op) {
+    switch (instr.b.op) {
     case 0:
-      return loadStoreWordAndUnsignedByte(*reinterpret_cast<u32 *>(&instr));
+      return loadStoreWordAndUnsignedByte(instr.v);
     case 1:
-      return media(*reinterpret_cast<u32 *>(&instr));
+      return media(instr.v);
     }
   default:
-    switch ((instr.op1 >> 1) & 0b11) {
+    switch ((instr.b.op1 >> 1) & 0b11) {
     case 0:
-      return dataProcAndMisc(*reinterpret_cast<u32 *>(&instr));
+      return dataProcAndMisc(instr.v);
     case 2:
-      return branchAndBlockDataTransfer(*reinterpret_cast<u32 *>(&instr));
+      return branchAndBlockDataTransfer(instr.v);
     case 3:
-      return coprocessorAndSVC(*reinterpret_cast<u32 *>(&instr));
+      return coprocessorAndSVC(instr.v);
     }
   }
   return Instr::undefined;
 }
 
-struct __attribute__((packed)) Uncond {
-  u32 _1 : 4;
-  u32 op : 1;
-  u32 _2 : 11;
-  // half
-  u32 Rn : 4;
-  u32 op1 : 8;
-  u32 cond : 4;
-};
-
-static Instr memoryHints(Uncond uncond) {
-  struct __attribute__((packed)) MemHint {
+union Uncond {
+  struct {
     u32 _1 : 4;
-    u32 op2 : 4;
-    u32 _2 : 8;
+    u32 op : 1;
+    u32 _2 : 11;
+    // half
     u32 Rn : 4;
     u32 op1 : 8;
     u32 cond : 4;
-  };
+  } b;
+  u32 v;
+};
 
-  MemHint *memhint = reinterpret_cast<MemHint *>(&uncond);
+static Instr memoryHints(Uncond uncond) {
+  union {
+    struct {
+      u32 _1 : 4;
+      u32 op2 : 4;
+      u32 _2 : 8;
+      u32 Rn : 4;
+      u32 op1 : 8;
+      u32 cond : 4;
+    } b;
+    u32 v;
+  } memhint = {.v = uncond.v};
 
-  u8 op1 = memhint->op1;
-  u8 op2 = memhint->op2;
-  u8 Rn = memhint->Rn;
+  u8 op1 = memhint.b.op1;
+  u8 op2 = memhint.b.op2;
+  u8 Rn = memhint.b.Rn;
 
   switch (op1) {
   case 0b10000:
@@ -1115,13 +1136,14 @@ static Instr memoryHints(Uncond uncond) {
   return Instr::undefined;
 }
 
-static Instr unconditional(Gen instr) {
-  Uncond *uncond = reinterpret_cast<Uncond *>(&instr);
-
-  if (!(uncond->op1 & 128)) {
-    return memoryHints(*uncond);
+static Instr unconditional(Gen i) {
+  Uncond instr = {.v = i.v};
+  u8 op1 = instr.b.op1;
+  u8 op = instr.b.op;
+  if (!(op1 & 128)) {
+    return memoryHints(instr);
   }
-  u8 op1 = uncond->op1;
+
   if ((op1 >> 5 == 0b100) and (op1 & 0b100) and !(op1 & 1)) {
     return Instr::srs;
   }
@@ -1131,7 +1153,7 @@ static Instr unconditional(Gen instr) {
   }
 
   if ((op1 >> 5 == 0b101)) {
-    if (instr.cond == 0b1111)
+    if (instr.b.cond == 0b1111)
       return Instr::blx;
     // unreachable
     return Instr::bl;
@@ -1144,7 +1166,7 @@ static Instr unconditional(Gen instr) {
 
   if ((op1 >> 5 == 0b110) and (op1 & 1) and (op1 != 0b11000001) and
       (op1 != 0b11000101)) {
-    if (uncond->Rn == 0b1111) {
+    if (instr.b.Rn == 0b1111) {
       return Instr::ldc2Lit;
     }
     return Instr::ldc2Imm;
@@ -1158,35 +1180,35 @@ static Instr unconditional(Gen instr) {
     return Instr::mrrc2;
   }
 
-  if (op1 >> 4 == 0b1110 and !instr.op) {
+  if (op1 >> 4 == 0b1110 and !op) {
     return Instr::cdp2;
   }
 
-  if (op1 >> 4 == 0b1110 and !(op1 & 1) and instr.op) {
+  if (op1 >> 4 == 0b1110 and !(op1 & 1) and op) {
     return Instr::mcr2;
   }
 
-  if (op1 >> 4 == 0b1110 and (op1 & 1) and instr.op) {
+  if (op1 >> 4 == 0b1110 and (op1 & 1) and op) {
     return Instr::mrc2;
   }
   return Instr::undefined;
 }
 
 Instr decodeA(u32 instr) {
-  const Gen *gen = reinterpret_cast<Gen *>(&instr);
+  const Gen gen = {.v = instr};
   Instr res;
-  switch (gen->cond) {
+  switch (gen.b.cond) {
   case 0b1111:
-    res = unconditional(*gen);
+    res = unconditional(gen);
     break;
   default:
-    res = conditional(*gen);
+    res = conditional(gen);
   }
   printInstr(res);
   return res;
 }
 
-// #ifdef TESTING
+#ifdef TESTING
 struct Pair {
   Instr instr;
   u32 mask;
@@ -1398,144 +1420,93 @@ Pair pairs[] = {
     {Instr::smuad, makeMask(4, 12, 13, 14, 15, 24, 25, 26)},
     {Instr::smulbb, makeMask(7, 21, 22, 24)},
     {Instr::smull, makeMask(4, 7, 22, 23)},
-    {Instr::smulwb,  makeMask(5,7,21,24)},
-    {Instr::smusd, makeMask(4,6,12,13,14,15,24,25,26)},
-    {Instr::srs, makeMask(uncond, 8,10,16,18,19,22,27)},
-    {Instr::ssat, makeMask(4,21,23,25,26)},
-    {Instr::ssat16, makeMask(4,5,8,9,10,11,21,23,25,26)},
-    {Instr::ssax, makeMask(4,6,8,9,10,11,20,25,26)},
-    {Instr::ssub16, makeMask(4,5,6,8,9,10,11,20,25,26)},
-    {Instr::ssub8, makeMask(4,5,6,7,8,9,10,11,20,25,26)},
-    {Instr::stc1, makeMask( 26,27, 21)},
-    {Instr::stc2, makeMask(26, 27,28,29,30,31, 21)},
-    {Instr::stm, makeMask(23,27)},
+    {Instr::smulwb, makeMask(5, 7, 21, 24)},
+    {Instr::smusd, makeMask(4, 6, 12, 13, 14, 15, 24, 25, 26)},
+    {Instr::srs, makeMask(uncond, 8, 10, 16, 18, 19, 22, 27)},
+    {Instr::ssat, makeMask(4, 21, 23, 25, 26)},
+    {Instr::ssat16, makeMask(4, 5, 8, 9, 10, 11, 21, 23, 25, 26)},
+    {Instr::ssax, makeMask(4, 6, 8, 9, 10, 11, 20, 25, 26)},
+    {Instr::ssub16, makeMask(4, 5, 6, 8, 9, 10, 11, 20, 25, 26)},
+    {Instr::ssub8, makeMask(4, 5, 6, 7, 8, 9, 10, 11, 20, 25, 26)},
+    {Instr::stc1, makeMask(26, 27, 21)},
+    {Instr::stc2, makeMask(26, 27, 28, 29, 30, 31, 21)},
+    {Instr::stm, makeMask(23, 27)},
     {Instr::stmda, makeMask(27)},
     {Instr::stmdb, makeMask(24, 27)},
-    {Instr::stmib, makeMask(23,24,27)},
+    {Instr::stmib, makeMask(23, 24, 27)},
     {Instr::strImm, makeMask(26)},
-    {Instr::strReg, makeMask(25,26)},
-    {Instr::strbImm, makeMask(22,26)},
-    {Instr::strbReg, makeMask(22,25,26)},
-    {Instr::strbt1, makeMask(21,22,26)},
-    {Instr::strbt2, makeMask(21,22,25,26)},
-    {Instr::strdImm, makeMask(4,5,6,7,22)},
-    {Instr::strd, makeMask(4,5,6,7)},
-    {Instr::strex, makeMask(4,7,8,9,10,11,23,24)},
-    {Instr::strexb, makeMask(4,7,8,9,10,11,22,23,24)},
-    {Instr::strexd, makeMask(4,7,8,9,10,11,21,23,24)},
-    {Instr::strexh, makeMask(4,7,8,9,10,11,21,22,23,24)},
-    {Instr::strhImm, makeMask(4,5,7,22)},
-    {Instr::strhReg, makeMask(4,5,7)},
-    {Instr::strht, makeMask(4,5,7,21,22)},
-    {Instr::strht2, makeMask(4,5,7,21)},
+    {Instr::strReg, makeMask(25, 26)},
+    {Instr::strbImm, makeMask(22, 26)},
+    {Instr::strbReg, makeMask(22, 25, 26)},
+    {Instr::strbt1, makeMask(21, 22, 26)},
+    {Instr::strbt2, makeMask(21, 22, 25, 26)},
+    {Instr::strdImm, makeMask(4, 5, 6, 7, 22)},
+    {Instr::strd, makeMask(4, 5, 6, 7)},
+    {Instr::strex, makeMask(4, 7, 8, 9, 10, 11, 23, 24)},
+    {Instr::strexb, makeMask(4, 7, 8, 9, 10, 11, 22, 23, 24)},
+    {Instr::strexd, makeMask(4, 7, 8, 9, 10, 11, 21, 23, 24)},
+    {Instr::strexh, makeMask(4, 7, 8, 9, 10, 11, 21, 22, 23, 24)},
+    {Instr::strhImm, makeMask(4, 5, 7, 22)},
+    {Instr::strhReg, makeMask(4, 5, 7)},
+    {Instr::strht, makeMask(4, 5, 7, 21, 22)},
+    {Instr::strht2, makeMask(4, 5, 7, 21)},
     {Instr::strt1, makeMask(21, 26)},
-    {Instr::strt2, makeMask(21,25,26)},
-    {Instr::subImm, makeMask(22,25)},
+    {Instr::strt2, makeMask(21, 25, 26)},
+    {Instr::subImm, makeMask(22, 25)},
     {Instr::subReg, makeMask(22)},
-    {Instr::subShiftedReg, makeMask(4,22)},
-    {Instr::svc, makeMask(24,25,26,27)},
-    {Instr::swp, makeMask(4,7,24)},
-    {Instr::sxtab, makeMask(4,5,6,21,23,25,26)},
-    {Instr::sxtab16, makeMask(4,5,6,23,25,26)},
-    {Instr::sxtah, makeMask(4,5,6,20,21,25,26,23)},
-    {Instr::sxtb, makeMask(4,5,6,16,17,18,19,21,23,25,26)},
-    {Instr::sxtb16, makeMask(4,5,6,16,17,18,19,25,26,23)},
-    {Instr::sxth, makeMask(4,5,6,16,17,18,19,20,21,23,25,26)},
-    {Instr::teqImm, makeMask(20,21,24,25)},
-    {Instr::teqReg, makeMask(20,21,24)},
-    {Instr::teqShiftedReg, makeMask(4,20,21,24)},
-    {Instr::tstImm, makeMask(20, 24,25)},
+    {Instr::subShiftedReg, makeMask(4, 22)},
+    {Instr::svc, makeMask(24, 25, 26, 27)},
+    {Instr::swp, makeMask(4, 7, 24)},
+    {Instr::sxtab, makeMask(4, 5, 6, 21, 23, 25, 26)},
+    {Instr::sxtab16, makeMask(4, 5, 6, 23, 25, 26)},
+    {Instr::sxtah, makeMask(4, 5, 6, 20, 21, 25, 26, 23)},
+    {Instr::sxtb, makeMask(4, 5, 6, 16, 17, 18, 19, 21, 23, 25, 26)},
+    {Instr::sxtb16, makeMask(4, 5, 6, 16, 17, 18, 19, 25, 26, 23)},
+    {Instr::sxth, makeMask(4, 5, 6, 16, 17, 18, 19, 20, 21, 23, 25, 26)},
+    {Instr::teqImm, makeMask(20, 21, 24, 25)},
+    {Instr::teqReg, makeMask(20, 21, 24)},
+    {Instr::teqShiftedReg, makeMask(4, 20, 21, 24)},
+    {Instr::tstImm, makeMask(20, 24, 25)},
     {Instr::tstReg, makeMask(20, 24)},
-    {Instr::tstShiftedReg, makeMask(4,20,24)},
-    {Instr::uadd16, makeMask(4,8,9,10,11,20,22,25,26)},
-    {Instr::uadd8, makeMask(4,7,8,9,10,11,20,22,25,26)},
-    {Instr::uasx, makeMask(4,5, 8,9,10,11,20,22,25,26)},
-    {Instr::ubfx, makeMask(4,6,21,22,23,24,25,26)},
-    {Instr::undefined, makeMask(4,5,6,7,20,21,22,23,24,25,26,29,30,31)},
-    {Instr::udiv, makeMask(4,12,13,12,15,20,21,24,25,26)},
-    {Instr::uhadd16, makeMask(4,8,9,10,11,20,21,22,25,26)},
-    {Instr::uhadd8, makeMask(4,7,8,9,10,11,20,21,22,25,26)},
-    {Instr::uhasx, makeMask(4,5,8,9,10,11,20,21,22,25,26)},
-    {Instr::uhsax, makeMask(4,6,8,9,10,11,20,21,22,25,26)},
-    {Instr::uhsub16, makeMask(4,5,6,8,9,10,11,20,21,22,25,26)},
-    {Instr::uhsub8, makeMask(4,5,6,7,8,9,10,11,20,21,22,25,26)},
-    {Instr::umaal, makeMask(4,7,22)},
-    {Instr::umlal, makeMask(4,7,21,23)},
-    {Instr::umull, makeMask(4,7,23)},
-    {Instr::uqadd16, makeMask(4,8,9,10,11,21,22,25,26)},
-    {Instr::uqadd8, makeMask(4,7,8,9,10,11,21,22,25,26)},
-    {Instr::uqasx, makeMask(4,5,8,9,10,11,21,22,25,26)},
-    {Instr::uqsax, makeMask(4,6,8,9,10,11,21,22,25,26)},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
-    {Instr::andReg, makeMask()},
+    {Instr::tstShiftedReg, makeMask(4, 20, 24)},
+    {Instr::uadd16, makeMask(4, 8, 9, 10, 11, 20, 22, 25, 26)},
+    {Instr::uadd8, makeMask(4, 7, 8, 9, 10, 11, 20, 22, 25, 26)},
+    {Instr::uasx, makeMask(4, 5, 8, 9, 10, 11, 20, 22, 25, 26)},
+    {Instr::ubfx, makeMask(4, 6, 21, 22, 23, 24, 25, 26)},
+    {Instr::undefined,
+     makeMask(4, 5, 6, 7, 20, 21, 22, 23, 24, 25, 26, 29, 30, 31)},
+    {Instr::udiv, makeMask(4, 12, 13, 12, 15, 20, 21, 24, 25, 26)},
+    {Instr::uhadd16, makeMask(4, 8, 9, 10, 11, 20, 21, 22, 25, 26)},
+    {Instr::uhadd8, makeMask(4, 7, 8, 9, 10, 11, 20, 21, 22, 25, 26)},
+    {Instr::uhasx, makeMask(4, 5, 8, 9, 10, 11, 20, 21, 22, 25, 26)},
+    {Instr::uhsax, makeMask(4, 6, 8, 9, 10, 11, 20, 21, 22, 25, 26)},
+    {Instr::uhsub16, makeMask(4, 5, 6, 8, 9, 10, 11, 20, 21, 22, 25, 26)},
+    {Instr::uhsub8, makeMask(4, 5, 6, 7, 8, 9, 10, 11, 20, 21, 22, 25, 26)},
+    {Instr::umaal, makeMask(4, 7, 22)},
+    {Instr::umlal, makeMask(4, 7, 21, 23)},
+    {Instr::umull, makeMask(4, 7, 23)},
+    {Instr::uqadd16, makeMask(4, 8, 9, 10, 11, 21, 22, 25, 26)},
+    {Instr::uqadd8, makeMask(4, 7, 8, 9, 10, 11, 21, 22, 25, 26)},
+    {Instr::uqasx, makeMask(4, 5, 8, 9, 10, 11, 21, 22, 25, 26)},
+    {Instr::uqsax, makeMask(4, 6, 8, 9, 10, 11, 21, 22, 25, 26)},
+    {Instr::uqsub16, makeMask(4, 5, 6, 8, 9, 10, 11, 21, 22, 25, 26)},
+    {Instr::uqsub8, makeMask(4, 5, 6, 7, 8, 9, 10, 11, 21, 22, 25, 26)},
+    {Instr::usad8, makeMask(4, 12, 13, 14, 15, 23, 24, 25, 26)},
+    {Instr::usada8, makeMask(4, 23, 24, 25, 26)},
+    {Instr::usat, makeMask(4, 21, 22, 23, 25, 26)},
+    {Instr::usat16, makeMask(4, 5, 8, 9, 10, 11, 21, 22, 23, 25, 26)},
+    {Instr::usax, makeMask(4, 6, 8, 9, 10, 11, 20, 22, 25, 26)},
+    {Instr::usub16, makeMask(4, 5, 6, 8, 9, 10, 11, 20, 22, 25, 26)},
+    {Instr::usub8, makeMask(4, 5, 6, 7, 8, 9, 10, 11, 20, 22, 25, 26)},
+    {Instr::uxtab, makeMask(4, 5, 6, 21, 22, 23, 25, 26)},
+    {Instr::uxtab16, makeMask(4, 5, 6, 22, 23, 25, 26)},
+    {Instr::uxtah, makeMask(4, 5, 6, 20, 21, 22, 23, 25, 26)},
+    {Instr::uxtb, makeMask(4, 5, 6, 16, 17, 18, 19, 21, 22, 23, 25, 26)},
+    {Instr::uxtb16, makeMask(4, 5, 6, 16, 17, 18, 19, 22, 23, 25, 26)},
+    {Instr::uxth, makeMask(4, 5, 6, 16, 17, 18, 19, 20, 21, 22, 23, 25, 26)},
+    {Instr::wfe, makeMask(12, 13, 14, 15, 24, 25, 1, 21)},
+    {Instr::wfi, makeMask(0, 1, 12, 13, 14, 15, 21, 24, 25)},
+    {Instr::yield, makeMask(0, 12, 13, 14, 15, 21, 24, 25)},
 };
 
 void test() {
@@ -1555,6 +1526,6 @@ void test() {
   printf("tested %u/%u\n", tested, (u32)Instr::msrImmSys);
 }
 
-// #endif
+#endif
 
 } // namespace Decoder
