@@ -1,6 +1,7 @@
 #include "./decoder.hpp"
 #include "./elf.hpp"
 #include "./mem.hpp"
+#include "./bin.hpp"
 #include "./stuff.hpp"
 #include <cstdio>
 #include <cstdlib>
@@ -10,6 +11,10 @@ Memory<1024> m;
 
 #ifndef TESTING
 fn main() -> i32 {
+  u32 instr =  assemble(
+           "wfi"
+           ""
+         );
   // Decoder::test();
     
   //       Elf elf("./build/elf");
