@@ -6,15 +6,17 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include "cpu.hpp"
 
 Memory<1024> m;
 
 #ifndef TESTING
 fn main() -> i32 {
-  u32 instr =  assemble(
-           "wfi"
-           ""
-         );
+  Cpu::test();
+  // u32 instr =  assemble(
+  //          "wfi"
+  //          ""
+  //        );
   // Decoder::test();
     
   //       Elf elf("./build/elf");
