@@ -117,6 +117,64 @@ static inline Res sat32(u32 v, u32 n, bool sign) {
   }
   return unsignedSat32(v, n);
 }
+
+static Res shiftC(u32 value, u8 type, u8 amount, bool carry_in) {
+  if (amount == 0)
+    return Res{.v = {.u = value}, .c = carry_in};
+  switch (type & 0b11) {
+  case 0:
+    return lsl32(value, amount);
+  case 1:
+    return lsr32(value, amount);
+  case 2:
+    return asr32(value, amount);
+  case 3:
+    return ror32(value, amount);
+  }
+  // unreachable
+  return Res{};
+}
+
+struct ImmShift {
+  u8 type;
+  u8 amount;
+};
+static ImmShift decodeImmShift(u8 type, u8 imm5) {
+  ImmShift i;
+  switch (type & 0b11) {
+  case 0: {
+    i.type = 0;
+    break;
+  }
+  case 1: {
+    i.type = 1;
+    i.amount = (imm5 & 0b11111) == 0 ? 32 : 0;
+    break;
+  }
+  case 2: {
+    i.type = 2;
+    i.amount = (imm5 & 0b11111) == 0 ? 32 : 0;
+    break;
+  }
+  case 3: {
+    if ((imm5 & 0b11111) == 0) {
+      i.type = 4;
+      i.amount = 1;
+    } else {
+      i.type = 3;
+      i.amount = imm5;
+    }
+    break;
+  }
+  }
+  return i;
+}
+
+static inline Res expandImmC(u16 imm12, bool in) {
+   return shiftC(imm12&0xff, 3, 2*((imm12>>8)&0xf), in);
+}
+
+
 #ifdef TESTING
 static void usatTest() {
   assert(unsignedSat32(0xff, 8).c == false);
