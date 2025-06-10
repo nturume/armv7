@@ -16,23 +16,23 @@ struct Cpu {
     bool c;
   };
 
-  static Res lsl32(u32 v, u8 n) {
-    // remove TODO
-    assert(n > 0);
-    constexpr u32 mask = u32(1) << 31;
-    v <<= n - 1;
-    Res res;
-    res.c = (v & mask) > 0;
-    res.v.u = v << 1;
+  static inline  Res lsl32(u32 v, u8 n) {
+    Res res{.v = {.u = v}, .c = false};
+    asm volatile("movb %[a], %%cl\n"
+                 "shll %%cl, %[b]\n"
+                 "setc %[c]\n"
+                 : [b] "+r"(res.v.u), [c] "=r"(res.c)
+                 : [a] "r"(n));
     return res;
   }
 
-  static Res lsr32(u32 v, u8 n) {
-    assert(n > 0);
-    v >>= n - 1;
-    Res res;
-    res.c = v & 1;
-    res.v.u = v >> 1;
+  static inline Res lsr32(u32 v, u8 n) {
+    Res res = {.v = {.u = v}, .c = false};
+    asm volatile("movb %[a], %%cl\n"
+                 "shrl %%cl, %[b]\n"
+                 "setc %[c]\n"
+                 : [b] "+r"(res.v.u), [c] "=r"(res.c)
+                 : [a] "r"(n));
     return res;
   }
 
@@ -55,19 +55,23 @@ struct Cpu {
   };
 
   static Res asr32(u32 v, u8 n) {
-    assert(n > 0);
-    Res i = {.v = {.u = v}, .c = false};
-    i.v.i >>= n - 1;
-    Res res;
-    i.c = i.v.i & 1;
-    res.v.i = i.v.i >> 1;
+    Res res = {.v = {.u = v}, .c = false};
+    asm volatile("movb %[a], %%cl\n"
+                 "sarl %%cl, %[b]\n"
+                 "setc %[c]\n"
+                 : [b] "+r"(res.v.u), [c] "=r"(res.c)
+                 : [a] "r"(n));
     return res;
   }
 
-  static Res ror32(u32 v, u8 n) {
-    u8 m = n % 32;
-    u32 rot = lsr32(v, m).v.u | lsl32(v, 32 - n).v.u;
-    return Res{.v = {.u = rot}, .c = (rot & (1 << 31)) > 0};
+  static Res ror32(u32 v, u8 n) {    
+    Res res = {.v = {.u = v}, .c = false};
+    asm volatile("movb %[a], %%cl\n"
+                 "rorl %%cl, %[b]\n"
+                 "setc %[c]\n"
+                 : [b] "+r"(res.v.u), [c] "=r"(res.c)
+                 : [a] "r"(n));
+    return res;
   }
 
   static Res rrx32(u32 v, u8 carry_in) {
@@ -97,11 +101,14 @@ struct Cpu {
   static void rorTest() {
     assert(ror32(1, 1).v.u == u32(1 << 31));
     assert(ror32(3, 1).v.u == (u32(1 << 31) | 1));
+    assert(ror32(1,1).c);
+    assert(!ror32(2, 1).c);
   }
 
   static void asrTest() {
     assert((asr32(128, 1).v.u) == 0b1000000);
     assert(asr32(1 << 31, 3).v.u == 0xf0000000);
+    assert(asr32(1,1).c);
   }
 
   static void lsrTest() {
@@ -110,12 +117,11 @@ struct Cpu {
   }
 
   static void lslTest() {
-    // assert(lsl<u8>(0, 0).v == 0);
     assert(lsl32(0xff, 1).v.u == (0xff) << 1);
-    assert(lsl32(1, 32).v.u == 0);
+    assert(lsl32(1, 3).v.u == 0b1000);
     assert(lsl32(1, 7).v.u == (1 << 7));
     assert(lsl32(0xffffffff, 1).c == true);
-    assert(lsl32(1, 32).c == true);
+    assert(lsl32(0b11, 31).c == true);
   }
 
   static void test() {
