@@ -7,15 +7,21 @@
 #include <cstdlib>
 #include <cstring>
 #include "arith.hpp"
+#include "cpu.hpp"
+
 
 Memory<1024> m;
 
 #ifndef TESTING
-fn main() -> i32 {
-  // u32 instr =  assemble(
-  //          "wfi"
-  //          ""
-  //        );
+int  main() {
+  Cpu c;
+  u32 instr =  assemble("adcs r1, r0, #69");
+  c.exec(instr);
+  c.printRegisters();
+  return 0; 
+
+ 
+  
   // Decoder::test();
     
   //       Elf elf("./build/elf");

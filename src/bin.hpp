@@ -10,17 +10,28 @@ inline u32 assemble(const char *program) {
     exit(1);
   }
 
-  const char *fmt = "echo %s | arm-none-eabi-as -o elf.tmp\n";
+  const char *fmt = "echo \"%s\" | arm-none-eabi-as -o elf.tmp\n";
   sprintf((i8 *)buf, fmt, program);
   if (system((i8 *)buf) == -1) {
     printf("failed to run assembler\n");
     exit(1);
   }
-
+  printf("=========disasm==============\n");
+  if(system("arm-none-eabi-objdump -d elf.tmp")==-1){
+    printf("objdump failed\n");
+    exit(1);
+  }
+  printf("========= disasm ============\n");
   if (system("arm-none-eabi-objcopy -O binary elf.tmp bin.tmp\n") == -1) {
     printf("objcopy failed\n");
     exit(1);
   }
+  printf("\n==============hex=============\n");
+  if(system("hexdump -C bin.tmp")==-1) {
+    printf("failed to hexdump\n");
+    exit(1);
+  }
+  printf("=============hex===============\n");
   FILE *bin = fopen("bin.tmp", "r");
   if (!bin) {
     printf("failed to open bin file\n");
