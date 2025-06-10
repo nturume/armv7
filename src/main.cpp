@@ -6,13 +6,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "cpu.hpp"
+#include "arith.hpp"
 
 Memory<1024> m;
 
 #ifndef TESTING
 fn main() -> i32 {
-  Cpu::test();
   // u32 instr =  assemble(
   //          "wfi"
   //          ""
@@ -39,6 +38,7 @@ fn main() -> i32 {
 int main() {
   Memory<64>::test();
   Decoder::test();
+  Arith::test();
   return 0;
 }
 
