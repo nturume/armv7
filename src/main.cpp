@@ -14,11 +14,12 @@ Memory<1024> m;
 
 #ifndef TESTING
 int  main() {
-  Cpu c;
-  u32 instr =  assemble("adcs r1, r0, #69");
-  c.exec(instr);
-  c.printRegisters();
-  return 0; 
+  Cpu::test();
+  // Cpu c;
+  // u32 instr =  assemble("adc r1, r0, #0x80000000");
+  // c.exec(instr);
+  // c.printRegisters();
+  // return 0; 
 
  
   

@@ -15,6 +15,14 @@ struct Res {
     u32 u;
   } v;
   bool c;
+
+  inline u32 u(){
+    return v.u;
+  }
+
+  inline i32 i(){
+    return v.i;
+  }
 };
 
 static inline Res lsl32(u32 v, u8 n) {
@@ -38,20 +46,24 @@ static inline Res lsr32(u32 v, u8 n) {
 }
 
 struct Adc {
-  u32 res;
-  bool of;
+  u32 r;
+  bool f;
   bool c;
+
+  inline bool n() { return (r & 0x80000000) > 0; }
+
+  inline bool z() { return r == 0; }
 };
 
 static inline Adc adc(u32 a, u32 b, bool carry) {
-  Adc res = {.res = 0, .of = false, .c = false};
+  Adc res = {.r = 0, .f = false, .c = false};
   asm volatile("btl $0, %[e]\n"
                "adcl %[a], %[b]\n"
                "seto %[c]\n"
                "setc %[d]\n"
-               : [b] "+r"(b), [c] "=m"(res.of), [d] "=m"(res.c)
+               : [b] "+r"(b), [c] "=m"(res.f), [d] "=m"(res.c)
                : [a] "r"(a), [e] "r"((u32)carry));
-  res.res = b;
+  res.r = b;
   return res;
 };
 
@@ -118,10 +130,11 @@ static inline Res sat32(u32 v, u32 n, bool sign) {
   return unsignedSat32(v, n);
 }
 
+/// type must be pre masked
 static Res shiftC(u32 value, u8 type, u8 amount, bool carry_in) {
   if (amount == 0)
     return Res{.v = {.u = value}, .c = carry_in};
-  switch (type & 0b11) {
+  switch (type) {
   case 0:
     return lsl32(value, amount);
   case 1:
@@ -130,39 +143,42 @@ static Res shiftC(u32 value, u8 type, u8 amount, bool carry_in) {
     return asr32(value, amount);
   case 3:
     return ror32(value, amount);
+  case 4:
+    return rrx32(value, carry_in);
   }
   // unreachable
-  return Res{};
+  assert(false);
 }
 
-struct ImmShift {
-  u8 type;
-  u8 amount;
+struct Is {
+  u8 t;
+  u8 n;
 };
-static ImmShift decodeImmShift(u8 type, u8 imm5) {
-  ImmShift i;
+static inline Is decodeImmShift(u8 type, u8 imm5) {
+  Is i;
   switch (type & 0b11) {
   case 0: {
-    i.type = 0;
+    i.t = 0;
+    i.n = (imm5 & 0b11111);
     break;
   }
   case 1: {
-    i.type = 1;
-    i.amount = (imm5 & 0b11111) == 0 ? 32 : 0;
+    i.t = 1;
+    i.n = (imm5 & 0b11111) == 0 ? 32 : (imm5 & 0b11111);
     break;
   }
   case 2: {
-    i.type = 2;
-    i.amount = (imm5 & 0b11111) == 0 ? 32 : 0;
+    i.t = 2;
+    i.n = (imm5 & 0b11111) == 0 ? 32 : (imm5 & 0b11111);
     break;
   }
   case 3: {
     if ((imm5 & 0b11111) == 0) {
-      i.type = 4;
-      i.amount = 1;
+      i.t = 4;
+      i.n = 1;
     } else {
-      i.type = 3;
-      i.amount = imm5;
+      i.t = 3;
+      i.n = (imm5 & 0b11111);
     }
     break;
   }
@@ -170,10 +186,11 @@ static ImmShift decodeImmShift(u8 type, u8 imm5) {
   return i;
 }
 
-static inline Res expandImmC(u16 imm12, bool in) {
-   return shiftC(imm12&0xff, 3, 2*((imm12>>8)&0xf), in);
+static inline Res expandImmC(u16 imm12) {
+  // just rotate direct
+  // return shiftC(imm12&0xff, 3, 2*((imm12>>8)&0xf), in);
+  return ror32(imm12 & 0xff, 2 * ((imm12 >> 8) & 0xf));
 }
-
 
 #ifdef TESTING
 static void usatTest() {
@@ -194,10 +211,10 @@ static void ssatTest() {
 
 static void adcTest() {
   assert(adc(1, 2, false).res == 3);
-  assert(adc(INT32_MAX, 1, false).of);
-  assert(adc(INT32_MAX, 0, true).of);
+  assert(adc(INT32_MAX, 1, false).f);
+  assert(adc(INT32_MAX, 0, true).f);
 
-  assert(adc(INT32_MAX, 1, true).of);
+  assert(adc(INT32_MAX, 1, true).f);
   assert(adc(UINT32_MAX, 1, true).c);
 
   assert(adc(UINT32_MAX, 0, true).c);

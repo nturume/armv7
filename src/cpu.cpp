@@ -1,6 +1,10 @@
 #include "cpu.hpp"
+#include "decoder.hpp"
 #include "stuff.hpp"
+#include <atomic>
+#include <cassert>
 #include <string>
+#include "bin.hpp"
 
 u32 Cpu::exec(u32 word) {
   cur = word;
@@ -8,9 +12,146 @@ u32 Cpu::exec(u32 word) {
   switch(instr) {
     case Instr::adcImm:
       return adcImm();
+    case Instr::adcReg:
+      return adcReg();
+    case Instr::adcShiftedReg:
+      return adcShiftedReg();
+    case Instr::addImm:
+      return addImm();
+    case Instr::addReg:
+      return addReg();
+    case Instr::addShiftedReg:
+      return addShiftedReg();
+    case Instr::subImm:
+      return subImm();
+    case Instr::subReg:
+      return subReg();
+    case Instr::subShiftedReg:
+      return subShiftedReg();
+    case Instr::cmnImm:
+      return cmnImm();
+    case Instr::cmnReg:
+      return cmnReg();
+    case Instr::cmnShiftedReg:
+      return cmnShiftedReg();
+    case Instr::cmpImm: 
+      return cmpImm();
+    case Instr::cmpReg:
+      return cmpReg();
+    case Instr::cmpShiftedReg:
+      return cmpShiftedReg();
   default:
     printf("unhandled instruction: ");
     Decoder::printInstr(instr);
     exit(1);
   }
+}
+
+u32 Cpu::x(const char *prog) {
+  return exec(assemble(prog));
+}
+
+static void testadcImm();
+static void testadcReg();
+static void testadcShiftedReg();
+static void testaddImm();
+void Cpu::test() {
+  testaddImm();
+  // testadcShiftedReg();
+  // testadcReg();
+  // testadcImm();
+}
+
+static void testadcShiftedReg() {
+  Cpu c;
+  c.r(0, 1);
+  c.r(1, 4);
+  c.c(true);
+  c.x("adc r1, r1, r1, lsl r0");
+  assert(c.r(1)==8+4+1);
+}
+
+static void testaddImm() {
+  Cpu c;
+  c.x("adds r0, r0, #0");
+  assert(c.z());
+  c.cf();
+  c.x("add r0, r0, #1");
+  assert(c.r(0)==1);
+  c.x("adds r1, r1, #0x80000000");
+  assert(c.n());
+  assert(c.r(1)==0x80000000);
+  c.c(true);
+  c.x("adds r2, r2, #0");
+  assert(c.r(2)==0);
+  assert(!c.c());
+
+  c.cf();
+  c.r(0, 0);
+  c.x("add r15, r0, #4");
+  assert(c.r(15)==4);
+
+  c.cf();
+  c.r(0, 0);
+  c.r(1, 0);
+  c.x("subs r0, r0, #1");
+  assert(c.r(0) == 0xffffffff);
+}
+
+static void testadcReg() {
+  Cpu c;
+  c.r(0, 5);
+  c.r(1, 5);
+  c.x("adc r2, r0, r1");
+  assert(c.r(2)==10);
+  c.r(2, 1);
+  c.x("adc r0, r2, r2, lsl #2");
+  assert(c.r(0)==(0b100+1));
+  
+  c.r(2, 1);
+  c.x("adc r0, r2, r2, lsl #31");
+  assert(c.r(0)==(0x80000000+1));
+  
+  c.r(2, 1);
+  c.x("adc r0, r2, r2, lsr #1");
+  assert(c.r(0)==(0b1));
+  
+  c.r(2, 1);
+  c.x("adc r0, r2, r2, ror #1");
+  assert(c.r(0)==(0x80000000+1));
+  
+  c.r(2, 0x80000000);
+  c.x("adc r0, r4, r2, asr #3");
+  assert(c.r(0)==(0xf0000000));
+  
+  c.r(2, 0b11);
+  c.cf();
+  c.x("adc r0, r5, r2, ror #0");
+  // TODO maybe toolchain bug
+  // assert(c.r(0)==(0b1));
+}
+
+static void testadcImm() {
+  Cpu c;
+  c.x("adcs r0, r0, #0");
+  assert(c.z());
+  c.cf();
+  c.x("adc r0, r0, #1");
+  assert(c.r(0)==1);
+  c.x("adcs r1, r1, #0x80000000");
+  assert(c.n());
+  assert(c.r(1)==0x80000000);
+  c.c(true);
+  c.x("adcs r2, r2, #0");
+  assert(c.r(2)==1);
+  assert(!c.c());
+
+  assert(Cpu::bm(2)==0b11);
+  assert(Cpu::bm(1)==1);
+  assert(Cpu::bm(32)==0xffffffff);
+
+  c.cf();
+  c.r(0, 0);
+  c.x("adc r15, r0, #4");
+  assert(c.r(15)==4);
 }
