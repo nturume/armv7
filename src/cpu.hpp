@@ -695,5 +695,40 @@ struct Cpu {
     return nxt();
   }
 
+  inline u32 asrImm() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u8 m = cur;
+      bool setflags = (cur & (1 << 20)) > 0;
+      auto shift = Arith::shiftC(r(m), 0b10, cur >> 7, c());
+      if (d == 15)
+        return aluWritePc(shift.u());
+      r(d, shift.u());
+      if (setflags) {
+        n(shift.n());
+        z(shift.z());
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 asrReg() {
+    if (cnd()) {
+      u8 d = cur >> 12;
+      u8 _n = cur;
+      u8 m = cur >> 8;
+      bool setflags = (cur & (1 << 20)) > 0;
+      auto shift = Arith::shiftC(r(_n), 0b10, r(m), c());
+      r(d, shift.u());
+      if (setflags) {
+        n(shift.n());
+        z(shift.z());
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
   static void test();
 };

@@ -66,6 +66,10 @@ u32 Cpu::exec(u32 word) {
       return tstReg();
     case Instr::tstShiftedReg:
       return tstShiftedReg();
+    case Instr::asrImm:
+      return asrImm();
+    case Instr::asrReg:
+      return asrReg();
   default:
     printf("unhandled instruction: ");
     Decoder::printInstr(instr);
@@ -83,14 +87,27 @@ static void testadcShiftedReg();
 static void testaddImm();
 static void testadr();
 static void testand();
-
+static void testshift();
 void Cpu::test() {
-  testand();
+  testshift();
+  //testand();
   //testadr();
   //testaddImm();
   // testadcShiftedReg();
   // testadcReg();
   // testadcImm();
+}
+
+static void testshift() {
+  Cpu c;
+  c.r(1, NEG);
+  c.x("asr r0, r1, #3");
+  assert(c.r(0)==0xf0000000);
+
+  c.r(0,NEG);
+  c.r(1,3);
+  c.x("asr r0, r0, r1");
+  assert(c.r(0)==0xf0000000);
 }
 
 static void testand() {
