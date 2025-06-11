@@ -50,3 +50,12 @@ struct FileReader {
     }
   }
 };
+
+
+inline u32 align4(u32 addr) {
+  return addr&(u32(0xffffffff)<<2);
+}
+
+inline u32 align2(u32 addr) {
+  return addr&(u32(0xffffffff)<<1);
+}

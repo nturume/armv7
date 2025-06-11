@@ -4,6 +4,7 @@
 #include "decoder.hpp"
 #include "mem.hpp"
 #include "stuff.hpp"
+#include <cmath>
 
 struct Cpu {
 
@@ -60,7 +61,11 @@ struct Cpu {
     return result;
   }
 
-  inline u32 r(u8 pos) { return regs[pos & 0xf]; }
+  inline u32 r(u8 pos) {
+    if ((pos & 0xf) == 15)
+      return regs[15] + 8;
+    return regs[pos & 0xf];
+  }
 
   inline void r(u8 pos, u32 value) { regs[pos & 0xf] = value; }
 
@@ -165,7 +170,7 @@ struct Cpu {
   inline u32 adcReg() {
     if (cnd()) {
       u8 m = cur;
-      u8 d = cur >> 12;
+      u8 d = (cur >> 12) & 0xf;
       u8 _n = cur >> 16;
       bool setflags = (cur & (1 << 20)) > 0;
       Arith::Is s = Arith::decodeImmShift((cur >> 5), (cur >> 7));
@@ -208,7 +213,7 @@ struct Cpu {
 
   inline u32 addImm() {
     if (cnd()) {
-      u8 d = cur >> 12;
+      u8 d = (cur >> 12) & 0xf;
       u8 _n = cur >> 16;
       bool setflags = (cur & (1 << 20)) > 0;
       Arith::Adc a = Arith::adc(r(_n), expandImm(u16(cur)), false);
@@ -228,7 +233,7 @@ struct Cpu {
   inline u32 addReg() {
     if (cnd()) {
       u8 m = cur;
-      u8 d = cur >> 12;
+      u8 d = (cur >> 12) & 0xf;
       u8 _n = cur >> 16;
       bool setflags = (cur & (1 << 20)) > 0;
       Arith::Is s = Arith::decodeImmShift((cur >> 5), (cur >> 7));
@@ -271,7 +276,7 @@ struct Cpu {
 
   inline u32 subImm() {
     if (cnd()) {
-      u8 d = cur >> 12;
+      u8 d = (cur >> 12) & 0xf;
       u8 _n = cur >> 16;
       bool setflags = (cur & (1 << 20)) > 0;
       Arith::Adc a = Arith::adc(r(_n), ~expandImm(u16(cur)), 1);
@@ -291,7 +296,7 @@ struct Cpu {
   inline u32 subReg() {
     if (cnd()) {
       u8 m = cur;
-      u8 d = cur >> 12;
+      u8 d = (cur >> 12) & 0xf;
       u8 _n = cur >> 16;
       bool setflags = (cur & (1 << 20)) > 0;
       Arith::Is s = Arith::decodeImmShift((cur >> 5), (cur >> 7));
@@ -414,6 +419,278 @@ struct Cpu {
       z(a.z());
       c(a.c);
       v(a.f);
+    }
+    return nxt();
+  }
+
+  inline u32 adr() {
+    if (cnd()) {
+      u32 imm32 = expandImm((u16)cur);
+      u32 d = (cur >> 12) & 0xf;
+      u32 res =
+          (cur & ((1) << 23)) ? align4(pc()) + imm32 : align4(pc()) - imm32;
+      if (d == 15)
+        return aluWritePc(res);
+      r(d, res);
+    }
+    return nxt();
+  }
+
+#define NEG 0x80000000
+
+  inline u32 andImm() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u8 _n = cur >> 16;
+      bool setflags = (cur & (1 << 20)) > 0;
+      Arith::Res shift = Arith::expandImmC(u16(cur));
+      u32 res = r(_n) & shift.u();
+      if (d == 15)
+        return aluWritePc(res);
+      r(d, res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 andReg() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u8 _n = cur >> 16;
+      u8 m = cur;
+      bool setflags = (cur & (1 << 20)) > 0;
+      Arith::Is s = Arith::decodeImmShift(cur >> 5, cur >> 7);
+      Arith::Res shift = Arith::shiftC(r(m), s.t, s.n, c());
+      u32 res = r(_n) & shift.u();
+      if (d == 15)
+        return aluWritePc(res);
+      r(d, res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 andShiftedReg() {
+    if (cnd()) {
+      u8 d = cur >> 12;
+      u8 _n = cur >> 16;
+      u8 m = cur;
+      u8 s = cur >> 8;
+      bool setflags = (cur & (1 << 20)) > 0;
+      auto shift = Arith::shiftC(r(m), decodeRegShift(cur >> 5), u8(r(s)), c());
+      u32 res = r(_n) & shift.u();
+      r(d, res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 eorImm() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u8 _n = cur >> 16;
+      bool setflags = (cur & (1 << 20)) > 0;
+      Arith::Res shift = Arith::expandImmC(u16(cur));
+      u32 res = r(_n) ^ shift.u();
+      if (d == 15)
+        return aluWritePc(res);
+      r(d, res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 eorReg() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u8 _n = cur >> 16;
+      u8 m = cur;
+      bool setflags = (cur & (1 << 20)) > 0;
+      Arith::Is s = Arith::decodeImmShift(cur >> 5, cur >> 7);
+      Arith::Res shift = Arith::shiftC(r(m), s.t, s.n, c());
+      u32 res = r(_n) ^ shift.u();
+      if (d == 15)
+        return aluWritePc(res);
+      r(d, res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 eorShiftedReg() {
+    if (cnd()) {
+      u8 d = cur >> 12;
+      u8 _n = cur >> 16;
+      u8 m = cur;
+      u8 s = cur >> 8;
+      bool setflags = (cur & (1 << 20)) > 0;
+      auto shift = Arith::shiftC(r(m), decodeRegShift(cur >> 5), u8(r(s)), c());
+      u32 res = r(_n) ^ shift.u();
+      r(d, res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 orrImm() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u8 _n = cur >> 16;
+      bool setflags = (cur & (1 << 20)) > 0;
+      Arith::Res shift = Arith::expandImmC(u16(cur));
+      u32 res = r(_n) | shift.u();
+      if (d == 15)
+        return aluWritePc(res);
+      r(d, res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 orrReg() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u8 _n = cur >> 16;
+      u8 m = cur;
+      bool setflags = (cur & (1 << 20)) > 0;
+      Arith::Is s = Arith::decodeImmShift(cur >> 5, cur >> 7);
+      Arith::Res shift = Arith::shiftC(r(m), s.t, s.n, c());
+      u32 res = r(_n) | shift.u();
+      if (d == 15)
+        return aluWritePc(res);
+      r(d, res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 orrShiftedReg() {
+    if (cnd()) {
+      u8 d = cur >> 12;
+      u8 _n = cur >> 16;
+      u8 m = cur;
+      u8 s = cur >> 8;
+      bool setflags = (cur & (1 << 20)) > 0;
+      auto shift = Arith::shiftC(r(m), decodeRegShift(cur >> 5), u8(r(s)), c());
+      u32 res = r(_n) | shift.u();
+      r(d, res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 teqImm() {
+    if (cnd()) {
+      u8 _n = cur >> 16;
+      Arith::Res shift = Arith::expandImmC(u16(cur));
+      u32 res = r(_n) ^ shift.u();
+      n((res & NEG) > 0);
+      z(res == 0);
+      c(shift.c);
+    }
+    return nxt();
+  }
+
+  inline u32 teqReg() {
+    if (cnd()) {
+      u8 _n = cur >> 16;
+      u8 m = cur;
+      Arith::Is s = Arith::decodeImmShift(cur >> 5, cur >> 7);
+      Arith::Res shift = Arith::shiftC(r(m), s.t, s.n, c());
+      u32 res = r(_n) ^ shift.u();
+      n((res & NEG) > 0);
+      z(res == 0);
+      c(shift.c);
+    }
+    return nxt();
+  }
+
+  inline u32 teqShiftedReg() {
+    if (cnd()) {
+      u8 _n = cur >> 16;
+      u8 m = cur;
+      u8 s = cur >> 8;
+      auto shift = Arith::shiftC(r(m), decodeRegShift(cur >> 5), u8(r(s)), c());
+      u32 res = r(_n) ^ shift.u();
+      n((res & NEG) > 0);
+      z(res == 0);
+      c(shift.c);
+    }
+    return nxt();
+  }
+
+  inline u32 tstImm() {
+    if (cnd()) {
+      u8 _n = cur >> 16;
+      Arith::Res shift = Arith::expandImmC(u16(cur));
+      u32 res = r(_n) & shift.u();
+      n((res & NEG) > 0);
+      z(res == 0);
+      c(shift.c);
+    }
+    return nxt();
+  }
+
+  inline u32 tstReg() {
+    if (cnd()) {
+      u8 _n = cur >> 16;
+      u8 m = cur;
+      Arith::Is s = Arith::decodeImmShift(cur >> 5, cur >> 7);
+      Arith::Res shift = Arith::shiftC(r(m), s.t, s.n, c());
+      u32 res = r(_n) & shift.u();
+      n((res & NEG) > 0);
+      z(res == 0);
+      c(shift.c);
+    }
+    return nxt();
+  }
+
+  inline u32 tstShiftedReg() {
+    if (cnd()) {
+      u8 _n = cur >> 16;
+      u8 m = cur;
+      u8 s = cur >> 8;
+      auto shift = Arith::shiftC(r(m), decodeRegShift(cur >> 5), u8(r(s)), c());
+      u32 res = r(_n) & shift.u();
+      n((res & NEG) > 0);
+      z(res == 0);
+      c(shift.c);
     }
     return nxt();
   }

@@ -40,6 +40,32 @@ u32 Cpu::exec(u32 word) {
       return cmpReg();
     case Instr::cmpShiftedReg:
       return cmpShiftedReg();
+    case Instr::adr:
+      return adr();
+    case Instr::andImm:
+      return andImm();
+    case Instr::andReg:
+      return andReg();
+    case Instr::andShiftedReg:
+      return andShiftedReg();
+    case Instr::eorImm:
+      return eorImm();
+    case Instr::eorReg:
+      return eorReg();
+    case Instr::eorShiftedReg:
+      return eorShiftedReg();
+    case Instr::teqImm:
+      return teqImm();
+    case Instr::teqReg:
+      return teqReg();
+    case Instr::teqShiftedReg:
+      return teqShiftedReg();
+    case Instr::tstImm:
+      return tstImm();
+    case Instr::tstReg:
+      return tstReg();
+    case Instr::tstShiftedReg:
+      return tstShiftedReg();
   default:
     printf("unhandled instruction: ");
     Decoder::printInstr(instr);
@@ -55,11 +81,51 @@ static void testadcImm();
 static void testadcReg();
 static void testadcShiftedReg();
 static void testaddImm();
+static void testadr();
+static void testand();
+
 void Cpu::test() {
-  testaddImm();
+  testand();
+  //testadr();
+  //testaddImm();
   // testadcShiftedReg();
   // testadcReg();
   // testadcImm();
+}
+
+static void testand() {
+  Cpu c;
+  c.x("ands r0, #0");
+  assert(c.z());
+  c.x("add r0, r0,#0xff000000");
+  c.x("ands r1, r0, #0xff000000");
+  assert(!c.z());
+  assert(c.r(1)==0xff000000);
+
+  c.r(0, 1);
+  c.r(1, 0xffffffff);
+  c.x("and r1, r1 , r0, lsl r0");
+  assert(c.r(1)==2);
+
+  c.r(0, 0xf);
+  c.r(1, 0xf);
+  c.x("and r0, r0, r1, lsl #1");
+  assert(c.r(0)==0b1110);
+}
+
+static void testadr() {
+  Cpu c;
+  c.r(15, 4);
+  c.x("adr r0, .");
+  assert(c.r(0)==4);
+  c.r(15,0);
+  c.r(0,0);
+  c.x("sub r0, pc, #2");
+  assert(c.r(0)==6);
+  c.r(15,0);
+  c.r(0,0);
+  c.x("add r0, pc, #2");
+  assert(c.r(0)==10);
 }
 
 static void testadcShiftedReg() {
