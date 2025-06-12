@@ -12,7 +12,9 @@ struct Cpu {
 
   union APSR {
     struct {
-      u32 _1 : 28;
+      u32 _1 : 16;
+      u32 ge: 3;
+      u32 _2: 8;
       u32 q : 1;
       u32 v : 1;
       u32 c : 1;
@@ -130,6 +132,14 @@ struct Cpu {
 
   inline void q(bool v) { apsr.b.q = v; }
 
+  inline u8 ge() {
+    return apsr.b.ge;
+  }
+
+  inline void ge(u8 v) {
+    apsr.b.ge = v&0xf;
+  }
+
   void printRegisters() {
     printf("=========regs==========\n");
     for (u32 i = 0; i < 16; i++) {
@@ -148,6 +158,61 @@ struct Cpu {
   static constexpr u32 bm(u8 n) { return u32(0xffffffff) >> (32 - n); }
 
   inline u8 decodeRegShift(u8 type) { return type & 0b11; }
+
+  inline bool curModeIsUsrSys() {
+    // TODO
+    return true;
+  }
+
+  inline bool curModeIsntUser() {
+    // TODO
+    return false;
+  }
+
+  inline u32 msrApp() {
+    if(cnd()){
+      u8 n = cur;
+      u8 mask = (cur>>18)&0b11;
+      bool write_nzcq = mask>>1;
+      bool write_g = mask&1;
+      if(write_nzcq) {
+        apsr.back |= (r(n)&(0xf8000000));
+      } 
+      if(write_g) {
+        ge(r(n)>>16);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 msrImmApp() {
+    if(cnd()){
+      u32 imm32 = expandImm(cur);
+      u8 mask = (cur>>18)&0b11;
+      bool write_nzcq = mask>>1;
+      bool write_g = mask&1;
+      if(write_nzcq) {
+        apsr.back |= (imm32&(0xf8000000));
+      } 
+      if(write_g) {
+        ge(imm32>>16);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 mrs() {
+    if (cnd()) {
+      u8 d = cur >> 12;
+      bool read_spsr = (cur & (1 << 22)) > 0;
+      if (read_spsr) {
+        assert("msr read_spsr" == nullptr);
+      } else {
+        r(d, apsr.back & 0b11111000111111110000001111011111);
+      }
+    }
+    return nxt();
+  }
 
   inline u32 adcImm() {
     if (cnd()) {
@@ -1127,6 +1192,40 @@ struct Cpu {
       u32 res = 0;
       asm volatile("lzcntl %[a], %[b]" : [b] "=r"(res) : [a] "r"(r(m)));
       r(d, res);
+    }
+    return nxt();
+  }
+
+  inline u32 mla() {
+    if (cnd()) {
+      u8 d = cur >> 16;
+      u8 _n = cur;
+      u8 m = cur >> 8;
+      u8 a = cur >> 12;
+      bool setflags = (cur & (1 << 20)) > 0;
+      u32 res = r(_n) * r(m) + r(a);
+      r(d, res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 mls() {
+    if (cnd()) {
+      u8 d = cur >> 16;
+      u8 _n = cur;
+      u8 m = cur >> 8;
+      u8 a = cur >> 12;
+      bool setflags = (cur & (1 << 20)) > 0;
+      u32 res = r(a) - r(_n) * r(m);
+      r(d, res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+      }
     }
     return nxt();
   }

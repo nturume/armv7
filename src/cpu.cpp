@@ -114,6 +114,16 @@ u32 Cpu::exec(u32 word) {
     return bfi();
   case Instr::clz:
     return clz();
+  case Instr::mla:
+    return mla();
+  case Instr::mls:
+    return mls();
+  case Instr::mrs:
+    return mrs();
+  case Instr::msrImmApp:
+    return msrImmApp();
+  case Instr::msrApp:
+    return msrApp();
   default:
     printf("unhandled instruction: ");
     Decoder::printInstr(instr);
@@ -132,8 +142,12 @@ static void testand();
 static void testshift();
 static void testmov();
 static void testbits();
+static void testmul();
+static void testmrs();
 void Cpu::test() {
-  testbits();
+  testmrs();
+  //testmul();
+  //testbits();
   // testmov();
   // testshift();
   // testand();
@@ -142,6 +156,39 @@ void Cpu::test() {
   //  testadcShiftedReg();
   //  testadcReg();
   //  testadcImm();
+}
+
+static void testmrs() {
+  Cpu c;
+  c.z(1);
+  c.n(1);
+  c.v(1);
+  c.c(1);
+  c.q(1);
+  c.x("mrs r0, apsr");
+  assert(c.r(0)==0xf8000000);
+  c.cf();
+  assert(c.apsr.back == 0);
+  c.x("msr apsr_nzcvq, #0xf8000000");
+  assert(c.apsr.back == 0xf8000000);
+  c.cf();
+  c.r(0, 0xf800f000);
+  assert(c.apsr.back == 0);
+  c.x("msr apsr_nzcvq, r0");
+  assert(c.apsr.back == 0xf8000000);
+}
+
+static void testmul() {
+  Cpu c;
+  c.r(0, 40);
+  c.r(1, 40);
+  c.r(2, 40);
+  c.x("mla r3, r1, r2, r0");
+  assert(c.r(3)==40*40+40);
+  c.r(2,2000);
+  c.x("mls r3, r0, r1, r2");
+  c.printRegisters();
+  assert(c.r(3)==2000-40*40);
 }
 
 static void testbits() {
