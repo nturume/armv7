@@ -337,6 +337,132 @@ struct Cpu {
     return nxt();
   }
 
+  inline u32 rscImm() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u8 _n = cur >> 16;
+      bool setflags = (cur & (1 << 20)) > 0;
+      Arith::Adc a = Arith::adc(~r(_n), expandImm(u16(cur)), c());
+      if (d == 15)
+        return aluWritePc(a.r);
+      r(d, a.r);
+      if (setflags) {
+        n(a.n());
+        z(a.z());
+        c(a.c);
+        v(a.f);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 rscReg() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = (cur >> 12) & 0xf;
+      u8 _n = cur >> 16;
+      bool setflags = (cur & (1 << 20)) > 0;
+      Arith::Is s = Arith::decodeImmShift((cur >> 5), (cur >> 7));
+      Arith::Res shifted = Arith::shiftC(r(m), s.t, s.n, c());
+      Arith::Adc adc = Arith::adc(~r(_n), shifted.u(), c());
+      if (d == 15) {
+        return aluWritePc(adc.r);
+      }
+      r(d, adc.r);
+      if (setflags) {
+        n(adc.n());
+        z(adc.z());
+        c(adc.c);
+        v(adc.f);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 rscShiftedReg() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 s = cur >> 8;
+      u8 _n = cur >> 16;
+      bool setflags = (cur & (1 << 20)) > 0;
+      u32 shifted =
+          Arith::shiftC(r(m), decodeRegShift(cur >> 5), (u8)r(s), c()).u();
+      Arith::Adc a = Arith::adc(~r(_n), shifted, c());
+      r(d, a.r);
+      if (setflags) {
+        n(a.n());
+        z(a.z());
+        c(a.c);
+        v(a.f);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 rsbImm() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u8 _n = cur >> 16;
+      bool setflags = (cur & (1 << 20)) > 0;
+      Arith::Adc a = Arith::adc(~r(_n), expandImm(u16(cur)), 1);
+      if (d == 15)
+        return aluWritePc(a.r);
+      r(d, a.r);
+      if (setflags) {
+        n(a.n());
+        z(a.z());
+        c(a.c);
+        v(a.f);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 rsbReg() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = (cur >> 12) & 0xf;
+      u8 _n = cur >> 16;
+      bool setflags = (cur & (1 << 20)) > 0;
+      Arith::Is s = Arith::decodeImmShift((cur >> 5), (cur >> 7));
+      Arith::Res shifted = Arith::shiftC(r(m), s.t, s.n, c());
+      Arith::Adc adc = Arith::adc(~r(_n), shifted.u(), 1);
+      if (d == 15) {
+        return aluWritePc(adc.r);
+      }
+      r(d, adc.r);
+      if (setflags) {
+        n(adc.n());
+        z(adc.z());
+        c(adc.c);
+        v(adc.f);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 rsbShiftedReg() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 s = cur >> 8;
+      u8 _n = cur >> 16;
+      bool setflags = (cur & (1 << 20)) > 0;
+      u32 shifted =
+          Arith::shiftC(r(m), decodeRegShift(cur >> 5), (u8)r(s), c()).u();
+      Arith::Adc a = Arith::adc(~r(_n), shifted, 1);
+      r(d, a.r);
+      if (setflags) {
+        n(a.n());
+        z(a.z());
+        c(a.c);
+        v(a.f);
+      }
+    }
+    return nxt();
+  }
+
   inline u32 cmnImm() {
     if (cnd()) {
       u8 _n = cur >> 16;
@@ -720,6 +846,129 @@ struct Cpu {
       u8 m = cur >> 8;
       bool setflags = (cur & (1 << 20)) > 0;
       auto shift = Arith::shiftC(r(_n), 0b10, r(m), c());
+      r(d, shift.u());
+      if (setflags) {
+        n(shift.n());
+        z(shift.z());
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 lslImm() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u8 m = cur;
+      bool setflags = (cur & (1 << 20)) > 0;
+      auto shift = Arith::shiftC(r(m), 0, cur >> 7, c());
+      if (d == 15)
+        return aluWritePc(shift.u());
+      r(d, shift.u());
+      if (setflags) {
+        n(shift.n());
+        z(shift.z());
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 lslReg() {
+    if (cnd()) {
+      u8 d = cur >> 12;
+      u8 _n = cur;
+      u8 m = cur >> 8;
+      bool setflags = (cur & (1 << 20)) > 0;
+      auto shift = Arith::shiftC(r(_n), 0, r(m), c());
+      r(d, shift.u());
+      if (setflags) {
+        n(shift.n());
+        z(shift.z());
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 lsrImm() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u8 m = cur;
+      bool setflags = (cur & (1 << 20)) > 0;
+      auto shift = Arith::shiftC(r(m), 1, cur >> 7, c());
+      if (d == 15)
+        return aluWritePc(shift.u());
+      r(d, shift.u());
+      if (setflags) {
+        n(shift.n());
+        z(shift.z());
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 lsrReg() {
+    if (cnd()) {
+      u8 d = cur >> 12;
+      u8 _n = cur;
+      u8 m = cur >> 8;
+      bool setflags = (cur & (1 << 20)) > 0;
+      auto shift = Arith::shiftC(r(_n), 1, r(m), c());
+      r(d, shift.u());
+      if (setflags) {
+        n(shift.n());
+        z(shift.z());
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 rorImm() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u8 m = cur;
+      bool setflags = (cur & (1 << 20)) > 0;
+      auto shift = Arith::shiftC(r(m), 0b11, cur >> 7, c());
+      if (d == 15)
+        return aluWritePc(shift.u());
+      r(d, shift.u());
+      if (setflags) {
+        n(shift.n());
+        z(shift.z());
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 rorReg() {
+    if (cnd()) {
+      u8 d = cur >> 12;
+      u8 _n = cur;
+      u8 m = cur >> 8;
+      bool setflags = (cur & (1 << 20)) > 0;
+      auto shift = Arith::shiftC(r(_n), 0b11, r(m), c());
+      r(d, shift.u());
+      if (setflags) {
+        n(shift.n());
+        z(shift.z());
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 rrx() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u8 m = cur;
+      bool setflags = (cur & (1 << 20)) > 0;
+      auto shift = Arith::shiftC(r(m), 4, 1, c());
+      if (d == 15)
+        return aluWritePc(shift.u());
       r(d, shift.u());
       if (setflags) {
         n(shift.n());

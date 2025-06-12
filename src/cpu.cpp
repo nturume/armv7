@@ -70,6 +70,30 @@ u32 Cpu::exec(u32 word) {
       return asrImm();
     case Instr::asrReg:
       return asrReg();
+    case Instr::lslImm:
+      return lslImm();
+    case Instr::lslReg:
+      return lslReg();
+    case Instr::lsrImm:
+      return lsrImm();
+    case Instr::rrx:
+      return rrx();
+    case Instr::rorImm:
+      return rorImm();
+    case Instr::rorReg:
+      return rorReg();
+    case Instr::rsbImm:
+      return rsbImm();
+    case Instr::rsbReg:
+      return rsbReg();
+    case Instr::rsbShiftedReg:
+      return rsbShiftedReg();
+    case Instr::rscImm:
+      return rscImm();
+    case Instr::rscReg:
+      return rscReg();
+    case Instr::rscShiftedReg:
+      return rscShiftedReg();
   default:
     printf("unhandled instruction: ");
     Decoder::printInstr(instr);
@@ -108,6 +132,11 @@ static void testshift() {
   c.r(1,3);
   c.x("asr r0, r0, r1");
   assert(c.r(0)==0xf0000000);
+
+  c.r(0, 1);
+  c.c(true);
+  c.x("rrx r0, r0");
+  assert(c.r(0)==NEG);
 }
 
 static void testand() {
