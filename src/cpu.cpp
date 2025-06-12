@@ -4,6 +4,7 @@
 #include "stuff.hpp"
 #include <atomic>
 #include <cassert>
+#include <cstdint>
 #include <string>
 
 u32 Cpu::exec(u32 word) {
@@ -136,6 +137,8 @@ u32 Cpu::exec(u32 word) {
     return nxt();
   case Instr::pkh:
     return pkh();
+  case Instr::qadd:
+    return qadd();
   default:
     printf("unhandled instruction: ");
     Decoder::printInstr(instr);
@@ -156,10 +159,12 @@ static void testmov();
 static void testbits();
 static void testmul();
 static void testmrs();
+static void testq();
 void Cpu::test() {
-  testmrs();
+  testq();
+  //testmrs();
   // testmul();
-  // testbits();
+  //testbits();
   //  testmov();
   //  testshift();
   //  testand();
@@ -168,6 +173,13 @@ void Cpu::test() {
   //   testadcShiftedReg();
   //   testadcReg();
   //   testadcImm();
+}
+
+static void testq() {
+  Cpu c;
+  c.r(0, INT32_MAX);
+  c.x("qadd r0,  r0, r0");
+  assert(c.q());
 }
 
 static void testmrs() {
@@ -239,6 +251,16 @@ static void testbits() {
   c.r(0, 0b11);
   c.x("clz r0, r0");
   assert(c.r(0) == 30);
+
+  c.r(0, 0xddddaaaa);
+  c.r(1, 0xccccbbbb);
+
+  c.x("pkhbt r2, r0, r1");
+  assert(c.r(2)==0xccccaaaa);
+
+  c.x("pkhtb r2, r0, r1");
+  assert(c.r(2)==0xddddbbbb);
+  
 }
 
 static void testmov() {

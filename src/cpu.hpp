@@ -71,6 +71,14 @@ struct Cpu {
     return regs[pos & 0xf];
   }
 
+  inline i32 rs(u8 pos) {
+    union {
+      u32 u;
+      i32 i;
+    } x = {.u = r(pos)};
+    return x.i;
+  }
+
   inline void r(u8 pos, u32 value) { regs[pos & 0xf] = value; }
 
   inline u8 currentInstrSet() { return 0; }
@@ -1313,6 +1321,28 @@ struct Cpu {
         r(d, (r(d) & 0xffff0000) | (r(n) & 0xffff));
         r(d, (r(d) & 0xffff) | (operand.u() & 0xffff0000));
       }
+    }
+    return nxt();
+  }
+
+  inline u32 qadd() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 n = cur >> 16;
+      u8 d = cur >> 12;
+      auto sat = Arith::signedSat32(r(m) + r(n), 32);
+      r(d, sat.u());
+      q(sat.sat());
+    }
+    return nxt();
+  }
+
+  inline u32 qadd16() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 n = cur >> 16;
+      u8 d = cur >> 12;
+      assert(false);
     }
     return nxt();
   }

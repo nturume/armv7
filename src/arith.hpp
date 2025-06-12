@@ -26,6 +26,8 @@ struct Res {
   inline bool n() { return (v.u & 0x80000000) > 0; }
 
   inline bool z() { return v.u == 0; }
+
+  inline bool sat(){return c;}
 };
 
 static inline Res lsl32(u32 v, u8 n) {
