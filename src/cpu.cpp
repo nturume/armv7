@@ -124,6 +124,12 @@ u32 Cpu::exec(u32 word) {
     return msrImmApp();
   case Instr::msrApp:
     return msrApp();
+  case Instr::mvnImm:
+    return mvnImm();
+  case Instr::mvnReg:
+    return mvnReg();
+  case Instr::mvnShiftedReg:
+    return mvnShiftedReg();
   default:
     printf("unhandled instruction: ");
     Decoder::printInstr(instr);

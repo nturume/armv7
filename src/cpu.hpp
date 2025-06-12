@@ -13,8 +13,8 @@ struct Cpu {
   union APSR {
     struct {
       u32 _1 : 16;
-      u32 ge: 3;
-      u32 _2: 8;
+      u32 ge : 3;
+      u32 _2 : 8;
       u32 q : 1;
       u32 v : 1;
       u32 c : 1;
@@ -132,13 +132,9 @@ struct Cpu {
 
   inline void q(bool v) { apsr.b.q = v; }
 
-  inline u8 ge() {
-    return apsr.b.ge;
-  }
+  inline u8 ge() { return apsr.b.ge; }
 
-  inline void ge(u8 v) {
-    apsr.b.ge = v&0xf;
-  }
+  inline void ge(u8 v) { apsr.b.ge = v & 0xf; }
 
   void printRegisters() {
     printf("=========regs==========\n");
@@ -169,33 +165,35 @@ struct Cpu {
     return false;
   }
 
+#define NEG 0x80000000
+
   inline u32 msrApp() {
-    if(cnd()){
+    if (cnd()) {
       u8 n = cur;
-      u8 mask = (cur>>18)&0b11;
-      bool write_nzcq = mask>>1;
-      bool write_g = mask&1;
-      if(write_nzcq) {
-        apsr.back |= (r(n)&(0xf8000000));
-      } 
-      if(write_g) {
-        ge(r(n)>>16);
+      u8 mask = (cur >> 18) & 0b11;
+      bool write_nzcq = mask >> 1;
+      bool write_g = mask & 1;
+      if (write_nzcq) {
+        apsr.back |= (r(n) & (0xf8000000));
+      }
+      if (write_g) {
+        ge(r(n) >> 16);
       }
     }
     return nxt();
   }
 
   inline u32 msrImmApp() {
-    if(cnd()){
+    if (cnd()) {
       u32 imm32 = expandImm(cur);
-      u8 mask = (cur>>18)&0b11;
-      bool write_nzcq = mask>>1;
-      bool write_g = mask&1;
-      if(write_nzcq) {
-        apsr.back |= (imm32&(0xf8000000));
-      } 
-      if(write_g) {
-        ge(imm32>>16);
+      u8 mask = (cur >> 18) & 0b11;
+      bool write_nzcq = mask >> 1;
+      bool write_g = mask & 1;
+      if (write_nzcq) {
+        apsr.back |= (imm32 & (0xf8000000));
+      }
+      if (write_g) {
+        ge(imm32 >> 16);
       }
     }
     return nxt();
@@ -209,6 +207,62 @@ struct Cpu {
         assert("msr read_spsr" == nullptr);
       } else {
         r(d, apsr.back & 0b11111000111111110000001111011111);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 mvnImm() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      bool setflags = (cur & (1 << 20)) > 0;
+      u32 res = ~expandImm(u16(cur));
+      if (d == 15)
+        return aluWritePc(res);
+      r(d, res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 mvnReg() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = (cur >> 12) & 0xf;
+      bool setflags = (cur & (1 << 20)) > 0;
+      Arith::Is s = Arith::decodeImmShift((cur >> 5), (cur >> 7));
+      Arith::Res shifted = Arith::shiftC(r(m), s.t, s.n, c());
+      shifted.v.u = ~shifted.v.u;
+      if (d == 15) {
+        return aluWritePc(shifted.u());
+      }
+      r(d, shifted.u());
+      if (setflags) {
+        n(shifted.n());
+        z(shifted.z());
+        c(shifted.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 mvnShiftedReg() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 s = cur >> 8;
+      u8 d = (cur >> 12) & 0xf;
+      bool setflags = (cur & (1 << 20)) > 0;
+      auto shifted =
+          Arith::shiftC(r(m), decodeRegShift(cur >> 5), (u8)r(s), c());
+      shifted.v.u = ~shifted.v.u;
+      r(d, shifted.u());
+      if (setflags) {
+        n(shifted.n());
+        z(shifted.z());
+        c(shifted.c);
       }
     }
     return nxt();
@@ -628,8 +682,6 @@ struct Cpu {
     }
     return nxt();
   }
-
-#define NEG 0x80000000
 
   inline u32 andImm() {
     if (cnd()) {
