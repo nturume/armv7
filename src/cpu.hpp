@@ -5,6 +5,8 @@
 #include "mem.hpp"
 #include "stuff.hpp"
 #include <cmath>
+#include <iosfwd>
+#include <string>
 
 struct Cpu {
 
@@ -1087,6 +1089,33 @@ struct Cpu {
       u8 d = (cur >> 12) & 0xf;
       u32 imm32 = (((cur >> 4) & 0xf000) | (cur & 0xfff));
       r(d, (r(d) & 0xffff) | imm32 << 16);
+    }
+    return nxt();
+  }
+
+  inline u32 bfc() {
+    if(cnd()) {
+      u8 lsbit = (cur>>7)&0b11111;
+      u8 d = cur>>12;
+      u8 msbit = (cur>>16)&0b11111;
+
+      u32 a = u64(0xffffffff)<<(msbit+1);
+      u32 b = u64(0xffffffff)>>(32-lsbit);
+
+      r(d, u32(a|b)&r(d));
+    }
+    return nxt();
+  }
+
+  inline u32 bfi() {
+    if(cnd()){
+      u8 d = cur>>12;
+      u8 _n = cur;
+      u8 msbit = ((cur>>16)&0b11111)+1;
+      u8 lsbit = (cur>>7)&0b11111;
+      u32 a = u64(0xffffffff)>>(32-(msbit-lsbit));
+      u32 res = u64(r(_n)&a)<<lsbit;
+      r(d, res|r(d));
     }
     return nxt();
   }

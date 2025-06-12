@@ -108,6 +108,10 @@ u32 Cpu::exec(u32 word) {
       return bicReg();
     case Instr::bicShiftedReg:
       return bicShiftedReg();
+    case Instr::bfc:
+      return bfc();
+    case Instr::bfi:
+      return bfi();
   default:
     printf("unhandled instruction: ");
     Decoder::printInstr(instr);
@@ -127,15 +131,48 @@ static void testadr();
 static void testand();
 static void testshift();
 static void testmov();
+static void testbits();
 void Cpu::test() {
+  testbits();
   //testmov();
   //testshift();
-  testand();
+  //testand();
   //testadr();
   //testaddImm();
   // testadcShiftedReg();
   // testadcReg();
   // testadcImm();
+}
+
+static void testbits() {
+  Cpu c;
+  c.r(0, 0b1111);
+  c.x("bfc r0, #0, #32");
+  assert(c.r(0)==0);
+  c.r(0,0xffff);
+  c.x("bfc r0, #8, #4");
+  assert(c.r(0)==0xf0ff);
+  c.x("bfc r0, #0, #4");
+  assert(c.r(0)==0xf0f0);
+  c.r(0, NEG);
+  c.x("bfc r0, #31, #1");
+  assert(c.r(0)==0);
+
+  c.r(0, 0x30);
+  c.r(1, 0xf);
+  c.x("bfi r0, r1, #0, #4");
+  assert(c.r(0)==0x3f);
+  c.x("bfi r0, r1, #28, #4");
+  assert(c.r(0)==0xf000003f);
+
+  c.x("bfi r2, r1, #31, #1");
+  assert(c.r(2)==NEG);
+
+  c.x("bfi r3, r1, #0, #1");
+  assert(c.r(3)==1);
+
+  c.x("bfc r1, #1, #1");
+  assert(c.r(1)==0b1101);
 }
 
 static void testmov() {
