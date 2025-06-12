@@ -1094,28 +1094,39 @@ struct Cpu {
   }
 
   inline u32 bfc() {
-    if(cnd()) {
-      u8 lsbit = (cur>>7)&0b11111;
-      u8 d = cur>>12;
-      u8 msbit = (cur>>16)&0b11111;
+    if (cnd()) {
+      u8 lsbit = (cur >> 7) & 0b11111;
+      u8 d = cur >> 12;
+      u8 msbit = (cur >> 16) & 0b11111;
 
-      u32 a = u64(0xffffffff)<<(msbit+1);
-      u32 b = u64(0xffffffff)>>(32-lsbit);
+      u32 a = u64(0xffffffff) << (msbit + 1);
+      u32 b = u64(0xffffffff) >> (32 - lsbit);
 
-      r(d, u32(a|b)&r(d));
+      r(d, u32(a | b) & r(d));
     }
     return nxt();
   }
 
   inline u32 bfi() {
-    if(cnd()){
-      u8 d = cur>>12;
+    if (cnd()) {
+      u8 d = cur >> 12;
       u8 _n = cur;
-      u8 msbit = ((cur>>16)&0b11111)+1;
-      u8 lsbit = (cur>>7)&0b11111;
-      u32 a = u64(0xffffffff)>>(32-(msbit-lsbit));
-      u32 res = u64(r(_n)&a)<<lsbit;
-      r(d, res|r(d));
+      u8 msbit = ((cur >> 16) & 0b11111) + 1;
+      u8 lsbit = (cur >> 7) & 0b11111;
+      u32 a = u64(0xffffffff) >> (32 - (msbit - lsbit));
+      u32 res = u64(r(_n) & a) << lsbit;
+      r(d, res | r(d));
+    }
+    return nxt();
+  }
+
+  inline u32 clz() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u32 res = 0;
+      asm volatile("lzcntl %[a], %[b]" : [b] "=r"(res) : [a] "r"(r(m)));
+      r(d, res);
     }
     return nxt();
   }
