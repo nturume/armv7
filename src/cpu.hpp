@@ -1282,5 +1282,40 @@ struct Cpu {
     return nxt();
   }
 
+  inline u32 mul() {
+    if (cnd()) {
+      u8 d = cur >> 16;
+      u8 _n = cur;
+      u8 m = cur >> 8;
+      bool setflags = (cur & (1 << 20)) > 0;
+      u32 res = r(_n) * r(m);
+      r(d, res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 pkh() {
+    if (cnd()) {
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      u8 m = cur;
+      u8 tbform = (cur >> 6) & 1;
+      auto shift = Arith::decodeImmShift(tbform << 1, cur >> 7);
+      auto operand = Arith::shiftC(r(m), shift.t, shift.n, c());
+      if (tbform) {
+        r(d, (r(d) & 0xffff0000) | (operand.u() & 0xffff));
+        r(d, (r(d) & 0xffff) | (r(n) & 0xffff0000));
+      } else {
+        r(d, (r(d) & 0xffff0000) | (r(n) & 0xffff));
+        r(d, (r(d) & 0xffff) | (operand.u() & 0xffff0000));
+      }
+    }
+    return nxt();
+  }
+
   static void test();
 };

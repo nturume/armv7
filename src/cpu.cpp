@@ -130,6 +130,12 @@ u32 Cpu::exec(u32 word) {
     return mvnReg();
   case Instr::mvnShiftedReg:
     return mvnShiftedReg();
+  case Instr::mul:
+    return mul();
+  case Instr::nop:
+    return nxt();
+  case Instr::pkh:
+    return pkh();
   default:
     printf("unhandled instruction: ");
     Decoder::printInstr(instr);
@@ -152,16 +158,16 @@ static void testmul();
 static void testmrs();
 void Cpu::test() {
   testmrs();
-  //testmul();
-  //testbits();
-  // testmov();
-  // testshift();
-  // testand();
-  // testadr();
-  // testaddImm();
-  //  testadcShiftedReg();
-  //  testadcReg();
-  //  testadcImm();
+  // testmul();
+  // testbits();
+  //  testmov();
+  //  testshift();
+  //  testand();
+  //  testadr();
+  //  testaddImm();
+  //   testadcShiftedReg();
+  //   testadcReg();
+  //   testadcImm();
 }
 
 static void testmrs() {
@@ -172,7 +178,7 @@ static void testmrs() {
   c.c(1);
   c.q(1);
   c.x("mrs r0, apsr");
-  assert(c.r(0)==0xf8000000);
+  assert(c.r(0) == 0xf8000000);
   c.cf();
   assert(c.apsr.back == 0);
   c.x("msr apsr_nzcvq, #0xf8000000");
@@ -190,11 +196,11 @@ static void testmul() {
   c.r(1, 40);
   c.r(2, 40);
   c.x("mla r3, r1, r2, r0");
-  assert(c.r(3)==40*40+40);
-  c.r(2,2000);
+  assert(c.r(3) == 40 * 40 + 40);
+  c.r(2, 2000);
   c.x("mls r3, r0, r1, r2");
   c.printRegisters();
-  assert(c.r(3)==2000-40*40);
+  assert(c.r(3) == 2000 - 40 * 40);
 }
 
 static void testbits() {
