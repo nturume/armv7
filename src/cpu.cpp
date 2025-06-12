@@ -94,6 +94,20 @@ u32 Cpu::exec(u32 word) {
       return rscReg();
     case Instr::rscShiftedReg:
       return rscShiftedReg();
+    case Instr::movImm:
+      return movImm();
+    case Instr::movImm16:
+      return movImm16();
+    case Instr::movReg:
+      return movReg();
+    case Instr::movt:
+      return movt();
+    case Instr::bicImm:
+      return bicImm();
+    case Instr::bicReg:
+      return bicReg();
+    case Instr::bicShiftedReg:
+      return bicShiftedReg();
   default:
     printf("unhandled instruction: ");
     Decoder::printInstr(instr);
@@ -112,14 +126,35 @@ static void testaddImm();
 static void testadr();
 static void testand();
 static void testshift();
+static void testmov();
 void Cpu::test() {
-  testshift();
-  //testand();
+  //testmov();
+  //testshift();
+  testand();
   //testadr();
   //testaddImm();
   // testadcShiftedReg();
   // testadcReg();
   // testadcImm();
+}
+
+static void testmov() {
+  Cpu c;
+  c.x("mov r0, #0xf0000000");
+  assert(c.r(0)==0xf0000000);
+  c.x("movw r0, #0xffff");
+  assert(c.r(0)==0xffff);
+  c.x("mov r1, r1");
+  assert(!c.z());
+  c.x("movs r0,r1");
+  assert(c.z());
+  c.x("mov r15, #4");
+  assert(c.pc()==12);
+
+  c.r(0, 0x8888);
+  c.x("movt r0, #0xffff");
+  assert(c.r(0)>>16==0xffff);
+  assert((c.r(0)&0xffff)==0x8888);
 }
 
 static void testshift() {
@@ -157,6 +192,10 @@ static void testand() {
   c.r(1, 0xf);
   c.x("and r0, r0, r1, lsl #1");
   assert(c.r(0)==0b1110);
+
+  c.r(0, 0xffff);
+  c.x("bic r0, r0,#0xff");
+  assert(c.r(0)==0xff00);
 }
 
 static void testadr() {

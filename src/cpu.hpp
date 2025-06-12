@@ -623,6 +623,65 @@ struct Cpu {
     return nxt();
   }
 
+  inline u32 bicImm() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u8 _n = cur >> 16;
+      bool setflags = (cur & (1 << 20)) > 0;
+      Arith::Res shift = Arith::expandImmC(u16(cur));
+      u32 res = r(_n) & ~shift.u();
+      if (d == 15)
+        return aluWritePc(res);
+      r(d, res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 bicReg() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u8 _n = cur >> 16;
+      u8 m = cur;
+      bool setflags = (cur & (1 << 20)) > 0;
+      Arith::Is s = Arith::decodeImmShift(cur >> 5, cur >> 7);
+      Arith::Res shift = Arith::shiftC(r(m), s.t, s.n, c());
+      u32 res = r(_n) & ~shift.u();
+      if (d == 15)
+        return aluWritePc(res);
+      r(d, res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 bicShiftedReg() {
+    if (cnd()) {
+      u8 d = cur >> 12;
+      u8 _n = cur >> 16;
+      u8 m = cur;
+      u8 s = cur >> 8;
+      bool setflags = (cur & (1 << 20)) > 0;
+      auto shift = Arith::shiftC(r(m), decodeRegShift(cur >> 5), u8(r(s)), c());
+      u32 res = r(_n) & ~shift.u();
+      r(d, res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+        c(shift.c);
+      }
+    }
+    return nxt();
+  }
+
   inline u32 eorImm() {
     if (cnd()) {
       u8 d = (cur >> 12) & 0xf;
@@ -975,6 +1034,59 @@ struct Cpu {
         z(shift.z());
         c(shift.c);
       }
+    }
+    return nxt();
+  }
+
+  inline u32 movImm() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      auto imm = Arith::expandImmC(cur);
+      bool setflags = (cur & (1 << 20)) > 0;
+      if (d == 15)
+        return aluWritePc(imm.u());
+      r(d, imm.u());
+      if (setflags) {
+        n(imm.n());
+        z(imm.z());
+        c(imm.c);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 movImm16() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u32 imm32 = (((cur >> 4) & 0xf000) | (cur & 0xfff));
+      if (d == 15)
+        return aluWritePc(imm32);
+      r(d, imm32);
+    }
+    return nxt();
+  }
+
+  inline u32 movReg() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = (cur >> 12) & 0xf;
+      bool setflags = (cur & (1 << 20)) > 0;
+      u32 res = r(m);
+      if (d == 15)
+        return aluWritePc(res);
+      if (setflags) {
+        n((res & NEG) > 0);
+        z(res == 0);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 movt() {
+    if (cnd()) {
+      u8 d = (cur >> 12) & 0xf;
+      u32 imm32 = (((cur >> 4) & 0xf000) | (cur & 0xfff));
+      r(d, (r(d) & 0xffff) | imm32 << 16);
     }
     return nxt();
   }
