@@ -78,3 +78,11 @@ inline i32 s32(u32 v) {
   } x = {.u = v};
   return x.i;
 }
+
+inline u32 uns32(i32 v) {
+  union {
+    i32 i;
+    u32 u;
+  } x = {.i = v};
+  return x.u;
+}

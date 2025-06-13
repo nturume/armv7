@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
 #include <string>
 
 u32 Cpu::exec(u32 word) {
@@ -138,16 +139,42 @@ u32 Cpu::exec(u32 word) {
     return nxt();
   case Instr::pkh:
     return pkh();
-  case Instr::qadd:
-    return qadd();
-  case Instr::qadd16:
-    return qadd16();
-  case Instr::qadd8:
-    return qadd8();
-  case Instr::qasx:
-    return qasx();
-  case Instr::qdadd:
-    return qdadd();
+    /* case Instr::qadd:
+       return qadd();
+     case Instr::qadd16:
+       return qadd16();
+     case Instr::qadd8:
+       return qadd8();
+     case Instr::qasx:
+       return qasx();
+     case Instr::qdadd:
+       return qdadd();
+     case Instr::qdsub:
+       return qdsub();
+     case Instr::qsax:
+       return qsax();
+     case Instr::qsub:
+       return qsub();
+     case Instr::qsub16:
+       return qsub16();
+     case Instr::qsub8:
+       return qsub8(); */
+  case Instr::rbit:
+    return rbit();
+  case Instr::rev:
+    return rev();
+  case Instr::rev16:
+    return rev16();
+  case Instr::revsh:
+    return revsh();
+  case Instr::sbfx:
+    return sbfx();
+  case Instr::sdiv:
+    return sdiv();
+  case Instr::ubfx:
+    return ubfx();
+  case Instr::udiv:
+    return udiv();
   default:
     printf("unhandled instruction: ");
     Decoder::printInstr(instr);
@@ -169,23 +196,99 @@ static void testbits();
 static void testmul();
 static void testmrs();
 static void testq();
+static void testrbit();
+static void testdiv();
+static void testubfx();
+
 void Cpu::test() {
-  testq();
-  // testmrs();
-  //  testmul();
-  // testbits();
-  //   testmov();
-  //   testshift();
-  //   testand();
-  //   testadr();
-  //   testaddImm();
-  //    testadcShiftedReg();
-  //    testadcReg();
-  //    testadcImm();
+  // testubfx();
+  testdiv();
+  // testrbit();
+  // testq();
+  //  testmrs();
+  //   testmul();
+  //  testbits();
+  //    testmov();
+  //    testshift();
+  //    testand();
+  //    testadr();
+  //    testaddImm();
+  //     testadcShiftedReg();
+  //     testadcReg();
+  //     testadcImm();
+}
+
+static void testubfx() {
+  Cpu c;
+  c.r(0, 0x12345678);
+  c.x("ubfx r0, r0, #9, #3");
+  assert(c.r(0) == 3);
+}
+
+static void testdiv() {
+  Cpu c;
+  c.r(0, 8);
+  c.r(1, 2);
+  c.x("sdiv r0, r0, r1");
+  printf("r0: ===> %d\n", c.r(0));
+  assert(c.r(0) == 4);
+
+  c.r(0, 0x80000000);
+  c.r(1, 0xffffffff);
+  c.x("sdiv r0, r0, r1");
+  assert(c.r(0) == 0x80000000);
+}
+
+static void testrbit() {
+  Cpu c;
+  c.r(0, 0x8000000f);
+  c.x("rbit r0, r0");
+  assert(c.r(0) == 0xf0000001);
+
+  c.r(0, 0xffff0000);
+  c.x("rev r0, r0");
+  assert(c.r(0) == 0xffff);
+
+  c.r(0, 0xffeeddbb);
+  c.x("rev16 r0, r0");
+  assert(c.r(0) == 0xeeffbbdd);
+
+  c.r(0, 0xddff);
+  c.x("revsh r0, r0");
+  assert(c.r(0) == 0xffffffdd);
+
+  c.r(0, 0b1);
+  c.x("sbfx r1, r0, #0, #1");
+
+  std::printf("----------====>>: %b\n", c.r(1));
+  assert(c.r(1) == 0xffffffff);
+  c.r(0, 0x80000000);
+  c.x("sbfx r1 ,r0, #31, #1");
+  std::printf("----------====>>: %b\n", c.r(1));
+  assert(c.r(1) == 0xffffffff);
 }
 
 static void testq() {
   Cpu c;
+
+  c.r(1, 0x12345678);
+  c.r(2, 0x87654321);
+
+  return;
+
+  c.x("qsub16 r0, r1, r2");
+  assert(c.r(0) == 0x7fff1357);
+
+  c.x("qsub8 r0, r1, r2");
+  assert(c.r(0) == 0x7fcf1357);
+
+  c.r(0, 0x12345678);
+  c.x("qsax r0, r0, r0");
+  assert(c.r(0) == 0xbbbc68ac);
+
+  c.r(0, 0xffffffff);
+  c.x("qdsub r0, r0, r0");
+  assert(c.r(0) == 1);
 
   c.r(0, 0xffffffff);
   c.x("qdadd r0, r0, r0");

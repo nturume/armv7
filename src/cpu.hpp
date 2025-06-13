@@ -5,6 +5,7 @@
 #include "mem.hpp"
 #include "stuff.hpp"
 #include <cmath>
+#include <functional>
 #include <iosfwd>
 #include <string>
 
@@ -169,6 +170,11 @@ struct Cpu {
   }
 
   inline bool curModeIsntUser() {
+    // TODO
+    return false;
+  }
+
+  bool intZeroDivTrapping() {
     // TODO
     return false;
   }
@@ -1369,6 +1375,50 @@ struct Cpu {
     return nxt();
   }
 
+  inline u32 qsub() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 n = cur >> 16;
+      u8 d = cur >> 12;
+      auto sat = Arith::signedSat32(s32(r(m)) - s32(r(n)), 32);
+      r(d, sat.u());
+      q(sat.sat());
+    }
+    return nxt();
+  }
+
+  inline u32 qsub16() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 n = cur >> 16;
+      u8 d = cur >> 12;
+
+      auto diff1 = Arith::ssat32(i32(s16(r(n))) - i32(s16(r(m))), 16);
+      auto diff2 =
+          Arith::ssat32(i32(s16(r(n) >> 16)) - i32(s16(r(m) >> 16)), 16);
+
+      r(d, (diff1.u() & 0xffff) | (diff2.u() << 16));
+    }
+    return nxt();
+  }
+
+  inline u32 qsub8() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 n = cur >> 16;
+      u8 d = cur >> 12;
+      using namespace Arith;
+      auto diff1 = ssat32(i32(s8(r(n))) - i32(s8(r(m))), 8);
+      auto diff2 = ssat32(i32(s8(r(n) >> 8)) - i32(s8(r(m) >> 8)), 8);
+      auto diff3 = ssat32(i32(s8(r(n) >> 16)) - i32(s8(r(m) >> 16)), 8);
+      auto diff4 = ssat32(i32(s8(r(n) >> 24)) - i32(s8(r(m) >> 24)), 8);
+
+      r(d, (diff1.u() & 0xff) | ((diff2.u() & 0xff) << 8) |
+               ((diff3.u() & 0xff) << 16) | ((diff4.u() & 0xff) << 24));
+    }
+    return nxt();
+  }
+
   inline u32 qasx() {
     if (cnd()) {
       u8 m = cur;
@@ -1378,6 +1428,19 @@ struct Cpu {
       auto diff = ssat32(i32(s16(r(n))) - i32(s16(r(m) >> 16)), 16);
       auto sum = ssat32(i32(s16(r(n) >> 16)) + i32(s16(r(m))), 16);
       r(d, (diff.u() & 0xffff) | (sum.u() << 16));
+    }
+    return nxt();
+  }
+
+  inline u32 qsax() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 n = cur >> 16;
+      u8 d = cur >> 12;
+      using namespace Arith;
+      auto sum = ssat32(i32(s16(r(n))) + i32(s16(r(m) >> 16)), 16);
+      auto diff = ssat32(i32(s16(r(n) >> 16)) - i32(s16(r(m))), 16);
+      r(d, (sum.u() & 0xffff) | (diff.u() << 16));
     }
     return nxt();
   }
@@ -1393,6 +1456,179 @@ struct Cpu {
       r(d, sat2.u());
       if (sat1.sat() || sat2.sat())
         q(1);
+    }
+    return nxt();
+  }
+
+  inline u32 qdsub() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 n = cur >> 16;
+      u8 d = cur >> 12;
+      using namespace Arith;
+      auto sat1 = ssat32(s32(r(n)) * 2, 32);
+      auto sat2 = ssat32(s32(r(m)) - sat1.i(), 32);
+      r(d, sat2.u());
+      if (sat1.sat() || sat2.sat())
+        q(1);
+    }
+    return nxt();
+  }
+
+  inline u32 rbit() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u32 res = 0;
+      for (int i = 0; i < 32; i++) {
+        res |= ((r(m) >> i) & 1) << (31 - i);
+      }
+      r(d, res);
+    }
+    return nxt();
+  }
+
+  inline u32 rev() {
+    if (cnd()) {
+      u8 d = cur >> 12;
+      u8 m = cur;
+      u32 src = r(m);
+      u32 dest = 0;
+      char *src_ptr = (char *)&src;
+      char *dest_ptr = (char *)&dest;
+
+      dest_ptr[0] = src_ptr[3];
+      dest_ptr[1] = src_ptr[2];
+      dest_ptr[2] = src_ptr[1];
+      dest_ptr[3] = src_ptr[0];
+
+      r(d, dest);
+    }
+    return nxt();
+  }
+
+  inline u32 rev16() {
+    if (cnd()) {
+      u8 d = cur >> 12;
+      u8 m = cur;
+
+      u32 src = r(m);
+      u32 dest = 0;
+      char *src_ptr = (char *)&src;
+      char *dest_ptr = (char *)&dest;
+
+      dest_ptr[0] = src_ptr[1];
+      dest_ptr[1] = src_ptr[0];
+      dest_ptr[2] = src_ptr[3];
+      dest_ptr[3] = src_ptr[2];
+
+      r(d, dest);
+    }
+
+    return nxt();
+  }
+
+  inline u32 revsh() {
+    if (cnd()) {
+      u8 d = cur >> 12;
+      u8 m = cur;
+
+      u32 src = r(m);
+      u32 dest = 0;
+      char *src_ptr = (char *)&src;
+      char *dest_ptr = (char *)&dest;
+
+      dest_ptr[0] = src_ptr[1];
+      dest_ptr[1] = src_ptr[0];
+
+      r(d, uns32(i32(s16(dest))));
+    }
+
+    return nxt();
+  }
+
+  inline u32 sbfx() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 lsbit = (cur >> 7) & 0b11111;
+      u8 d = cur >> 12;
+      u8 widthminus1 = (cur >> 16) & 0b11111;
+
+      u8 msbit = lsbit + widthminus1;
+
+      u32 a = u64(0xffffffff) << (msbit + 1);
+      u32 b = u64(0xffffffff) >> (32 - lsbit);
+
+      u32 x = ~u32(a | b) & r(n);
+      if (x & (u32(1 << msbit))) {
+        x |= a;
+      }
+      x = s32(x) >> lsbit;
+      r(d, x);
+    }
+    return nxt();
+  }
+
+  inline u32 ubfx() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 lsbit = (cur >> 7) & 0b11111;
+      u8 d = cur >> 12;
+      u8 widthminus1 = (cur >> 16) & 0b11111;
+
+      u8 msbit = lsbit + widthminus1;
+
+      u32 a = u64(0xffffffff) << (msbit + 1);
+      u32 b = u64(0xffffffff) >> (32 - lsbit);
+
+      u32 x = ~u32(a | b) & r(n);
+      x = s32(x) >> lsbit;
+      r(d, x);
+    }
+    return nxt();
+  }
+
+  inline u32 sdiv() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 m = cur >> 8;
+      u8 d = cur >> 16;
+      i32 result;
+      if (r(m) == 0) {
+        if (intZeroDivTrapping()) {
+          assert("division by zero" == nullptr);
+        } else {
+          result = 0;
+        }
+      } else {
+        if (r(n) == 0x80000000 and r(m) == 0xffffffff) {
+          result = 0x80000000;
+        } else {
+          result = s32(r(n)) / s32(r(m));
+        }
+      }
+      r(d, uns32(result));
+    }
+
+    return nxt();
+  }
+
+  inline u32 udiv() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 m = cur >> 8;
+      u8 d = cur >> 16;
+      u32 result;
+      if (r(m) == 0) {
+        if (intZeroDivTrapping()) {
+          assert("division by zero" == nullptr);
+        } else {
+          result = 0;
+        }
+      } else {
+        result = r(n) / r(m);
+      }
+      r(d, result);
     }
     return nxt();
   }

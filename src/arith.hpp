@@ -99,16 +99,18 @@ static inline Res rrx32(u32 v, u8 carry_in) {
   return Res{.v = {.u = i}, .c = (v & 1) > 0};
 }
 
-static inline Res signedSat32(i32 v, u32 n) {
-  Res r = Res{.v = {.i = v}, .c = false};
+static inline Res signedSat32(u32 v, u32 n) {
+  Res r = Res{.v = {.u = v}, .c = false};
   i64 p = u32(1)<<(n-1);
-  if (i64(r.v.i) > p - 1) {
+  printf("chacking: %x %d %u bits: %d\n", v,v,v, n);
+  assert(false);
+  /*if (i64(r.v.i) > p - 1) {
     r.c = true;
     r.v.i = p - 1;
   } else if (i64(r.v.i) < -p) {
     r.c = true;
     r.v.i = -p;
-  }
+  }*/
   return r;
 }
 
