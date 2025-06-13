@@ -51,11 +51,30 @@ struct FileReader {
   }
 };
 
+inline u32 align4(u32 addr) { return addr & (u32(0xffffffff) << 2); }
 
-inline u32 align4(u32 addr) {
-  return addr&(u32(0xffffffff)<<2);
+inline u32 align2(u32 addr) { return addr & (u32(0xffffffff) << 1); }
+
+inline i8 s8(u8 v) {
+  union {
+    i8 i;
+    u8 u;
+  } x = {.u = v};
+  return x.i;
 }
 
-inline u32 align2(u32 addr) {
-  return addr&(u32(0xffffffff)<<1);
+inline i16 s16(u16 v) {
+  union {
+    i16 i;
+    u16 u;
+  } x = {.u = v};
+  return x.i;
+}
+
+inline i32 s32(u32 v) {
+  union {
+    i32 i;
+    u32 u;
+  } x = {.u = v};
+  return x.i;
 }

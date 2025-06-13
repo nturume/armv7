@@ -1330,7 +1330,7 @@ struct Cpu {
       u8 m = cur;
       u8 n = cur >> 16;
       u8 d = cur >> 12;
-      auto sat = Arith::signedSat32(r(m) + r(n), 32);
+      auto sat = Arith::signedSat32(s32(r(m) + r(n)), 32);
       r(d, sat.u());
       q(sat.sat());
     }
@@ -1342,7 +1342,57 @@ struct Cpu {
       u8 m = cur;
       u8 n = cur >> 16;
       u8 d = cur >> 12;
-      assert(false);
+
+      auto sum1 = Arith::ssat32(i32(s16(r(n))) + i32(s16(r(m))), 16);
+      auto sum2 =
+          Arith::ssat32(i32(s16(r(n) >> 16)) + i32(s16(r(m) >> 16)), 16);
+
+      r(d, (sum1.u() & 0xffff) | (sum2.u() << 16));
+    }
+    return nxt();
+  }
+
+  inline u32 qadd8() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 n = cur >> 16;
+      u8 d = cur >> 12;
+      using namespace Arith;
+      auto sum1 = ssat32(i32(s8(r(n))) + i32(s8(r(m))), 8);
+      auto sum2 = ssat32(i32(s8(r(n) >> 8)) + i32(s8(r(m) >> 8)), 8);
+      auto sum3 = ssat32(i32(s8(r(n) >> 16)) + i32(s8(r(m) >> 16)), 8);
+      auto sum4 = ssat32(i32(s8(r(n) >> 24)) + i32(s8(r(m) >> 24)), 8);
+
+      r(d, (sum1.u() & 0xff) | ((sum2.u() & 0xff) << 8) |
+               ((sum3.u() & 0xff) << 16) | ((sum4.u() & 0xff) << 24));
+    }
+    return nxt();
+  }
+
+  inline u32 qasx() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 n = cur >> 16;
+      u8 d = cur >> 12;
+      using namespace Arith;
+      auto diff = ssat32(i32(s16(r(n))) - i32(s16(r(m) >> 16)), 16);
+      auto sum = ssat32(i32(s16(r(n) >> 16)) + i32(s16(r(m))), 16);
+      r(d, (diff.u() & 0xffff) | (sum.u() << 16));
+    }
+    return nxt();
+  }
+
+  inline u32 qdadd() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 n = cur >> 16;
+      u8 d = cur >> 12;
+      using namespace Arith;
+      auto sat1 = ssat32(s32(r(n)) * 2, 32);
+      auto sat2 = ssat32(s32(r(m)) + sat1.i(), 32);
+      r(d, sat2.u());
+      if (sat1.sat() || sat2.sat())
+        q(1);
     }
     return nxt();
   }

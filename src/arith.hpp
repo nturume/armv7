@@ -99,13 +99,13 @@ static inline Res rrx32(u32 v, u8 carry_in) {
   return Res{.v = {.u = i}, .c = (v & 1) > 0};
 }
 
-static inline Res signedSat32(u32 v, u32 n) {
-  Res r = Res{.v = {.u = v}, .c = false};
-  i32 p = (std::pow(int(2), n - 1));
-  if (r.v.i > p - 1) {
+static inline Res signedSat32(i32 v, u32 n) {
+  Res r = Res{.v = {.i = v}, .c = false};
+  i64 p = u32(1)<<(n-1);
+  if (i64(r.v.i) > p - 1) {
     r.c = true;
     r.v.i = p - 1;
-  } else if (r.v.i < -p) {
+  } else if (i64(r.v.i) < -p) {
     r.c = true;
     r.v.i = -p;
   }
@@ -114,8 +114,8 @@ static inline Res signedSat32(u32 v, u32 n) {
 
 static inline Res unsignedSat32(u32 v, u32 n) {
   Res r = Res{.v = {.u = v}, .c = false};
-  u32 p = (std::pow(u32(2), n));
-  if (r.v.u > p - 1) {
+  u64 p = u64(1)<<n;
+  if (u64(r.v.u) > p - 1) {
     r.c = true;
     r.v.i = p - 1;
   }
@@ -125,6 +125,14 @@ static inline Res unsignedSat32(u32 v, u32 n) {
   //   r.v.u = 0;
   // }
   return r;
+}
+
+inline Res usat32(u32 v, u32 n) {
+  return unsignedSat32(v,n);
+}
+
+inline Res ssat32(i32 v, u32 n) {
+  return signedSat32(v, n);
 }
 
 static inline Res sat32(u32 v, u32 n, bool sign) {
@@ -208,14 +216,15 @@ static void usatTest() {
 static void ssatTest() {
   assert(signedSat32(3, 1).c);
   assert(signedSat32(3, 1).v.i == 0);
-  assert(signedSat32(0xffffffff, 32).c);
+  assert(signedSat32(0xffffffff, 32).c==false);
   assert(signedSat32(129, 8).v.u == 127);
   assert(signedSat32(0xff, 8).v.u == 127);
   assert(sat32(0xff, 8, true).v.u == 127);
+  assert(signedSat32(-150, 8).v.i==-128);
 }
 
 static void adcTest() {
-  assert(adc(1, 2, false).res == 3);
+  assert(adc(1, 2, false).r == 3);
   assert(adc(INT32_MAX, 1, false).f);
   assert(adc(INT32_MAX, 0, true).f);
 

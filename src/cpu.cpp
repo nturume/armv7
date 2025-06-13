@@ -1,4 +1,5 @@
 #include "cpu.hpp"
+#include "arith.hpp"
 #include "bin.hpp"
 #include "decoder.hpp"
 #include "stuff.hpp"
@@ -139,6 +140,14 @@ u32 Cpu::exec(u32 word) {
     return pkh();
   case Instr::qadd:
     return qadd();
+  case Instr::qadd16:
+    return qadd16();
+  case Instr::qadd8:
+    return qadd8();
+  case Instr::qasx:
+    return qasx();
+  case Instr::qdadd:
+    return qdadd();
   default:
     printf("unhandled instruction: ");
     Decoder::printInstr(instr);
@@ -162,24 +171,64 @@ static void testmrs();
 static void testq();
 void Cpu::test() {
   testq();
-  //testmrs();
-  // testmul();
-  //testbits();
-  //  testmov();
-  //  testshift();
-  //  testand();
-  //  testadr();
-  //  testaddImm();
-  //   testadcShiftedReg();
-  //   testadcReg();
-  //   testadcImm();
+  // testmrs();
+  //  testmul();
+  // testbits();
+  //   testmov();
+  //   testshift();
+  //   testand();
+  //   testadr();
+  //   testaddImm();
+  //    testadcShiftedReg();
+  //    testadcReg();
+  //    testadcImm();
 }
 
 static void testq() {
   Cpu c;
-  c.r(0, INT32_MAX);
+
+  c.r(0, 0xffffffff);
+  c.x("qdadd r0, r0, r0");
+  assert(c.r(0) == 0xfffffffd);
+
+  c.r(0, 0xffffffff);
   c.x("qadd r0,  r0, r0");
-  assert(c.q());
+
+  c.r(0, 0xffffffff);
+  c.x("qadd16 r0, r0, r0");
+  assert(c.r(0) == 0xfffefffe);
+
+  c.r(0, 0x88888888);
+  c.x("qadd16 r0, r0, r0");
+  assert(c.r(0) == 0x80008000);
+
+  c.r(0, 0xdddddddd);
+  c.x("qadd16 r0, r0, r0");
+  assert(c.r(0) == 0xbbbabbba);
+
+  c.r(0, 0xffffdddd);
+  c.x("qadd16 r0, r0, r0");
+  assert(c.r(0) == 0xfffebbba);
+
+  c.r(0, 0xbbbbbbbb);
+  c.x("qadd16 r0, r0, r0");
+  assert(c.r(0) == 0x80008000);
+
+  c.r(0, 0xddddddd);
+  c.x("qadd16 r0, r0, r0");
+  assert(c.r(0) == 0x1bbabbba);
+
+  c.r(0, 0xffffffff);
+  c.x("qadd8 r0, r0, r0");
+  assert(c.r(0) == 0xfefefefe);
+
+  c.r(0, 0xffffffff);
+  c.x("qasx r0, r0, r0");
+  assert(c.r(0) == 0xfffe0000);
+
+  c.r(0, 0x12345678);
+  c.x("qasx r0, r0, r0");
+  assert(c.r(0) == 0x68ac4444);
 }
 
 static void testmrs() {
@@ -256,11 +305,10 @@ static void testbits() {
   c.r(1, 0xccccbbbb);
 
   c.x("pkhbt r2, r0, r1");
-  assert(c.r(2)==0xccccaaaa);
+  assert(c.r(2) == 0xccccaaaa);
 
   c.x("pkhtb r2, r0, r1");
-  assert(c.r(2)==0xddddbbbb);
-  
+  assert(c.r(2) == 0xddddbbbb);
 }
 
 static void testmov() {
