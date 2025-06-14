@@ -79,10 +79,26 @@ inline i32 s32(u32 v) {
   return x.i;
 }
 
+inline i64 s64(u64 v) {
+  union {
+    i64 i;
+    u64 u;
+  } x = {.u = v};
+  return x.i;
+}
+
 inline u32 uns32(i32 v) {
   union {
     i32 i;
     u32 u;
+  } x = {.i = v};
+  return x.u;
+}
+
+inline u64 uns64(i64 v) {
+  union {
+    i64 i;
+    u64 u;
   } x = {.i = v};
   return x.u;
 }

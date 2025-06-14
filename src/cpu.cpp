@@ -205,6 +205,16 @@ u32 Cpu::exec(u32 word) {
     return sxtb();
   case Instr::sxtb16:
     return sxtb16();
+  case Instr::smlabb:
+    return smlabb();
+  case Instr::smlad:
+    return smlad();
+  case Instr::smlal:
+    return smlal();
+  case Instr::smlalbb:
+    return smlalbb();
+  case Instr::smlald:
+    return smlald();
   default:
     printf("unhandled instruction: ");
     Decoder::printInstr(instr);
@@ -230,11 +240,13 @@ static void testrbit();
 static void testdiv();
 static void testubfx();
 static void testxtab();
+static void testsmul();
 
 void Cpu::test() {
-  testxtab();
-  // testubfx();
- // testdiv();
+  testsmul();
+  // testxtab();
+  //  testubfx();
+  // testdiv();
   // testrbit();
   // testq();
   //  testmrs();
@@ -250,35 +262,90 @@ void Cpu::test() {
   //     testadcImm();
 }
 
+static void testsmul() {
+  Cpu c;
+  c.r(0, 0x12345678);
+  c.x("smlabt r1, r0, r0, r3");
+  assert(c.r(1) == 0x6260060);
+  c.r(0, 0xffffffff);
+  c.x("smlabt r1, r0, r0, r3");
+  assert(c.r(1) == 1);
+
+  c.r(3, 0x12345678);
+  c.x("smlad r1, r0, r0, r3");
+  assert(c.r(1) == 0x1234567a);
+  c.r(0, 0x12345678);
+  c.x("smladx r1, r0, r0, r3");
+  assert(c.r(1) == 0x1e805738);
+
+  c.r(0, 0x12345678);
+  c.r(1, 0x87654321);
+  c.x("smlal r1, r0, r0, r0");
+  assert(c.r(0) == 0x137fbd54);
+  assert(c.r(1) == 0xa55a1b61);
+
+  c.r(0, 0x12345678);
+  c.r(1, 0x87654321);
+  c.x("smlalbt r1, r0, r0, r0");
+  assert(c.r(0) == 0x12345678);
+  printf("r1: %x\n", c.r(1));
+  assert(c.r(1) == 0x8d8b4381);
+
+  c.r(0, 0x12345678);
+  c.r(1, 0x87654321);
+  c.x("smlalbb r1, r0, r0, r0");
+  assert(c.r(0) == 0x12345678);
+  printf("r1: %x\n", c.r(1));
+  assert(c.r(1) == 0xa49a1b61);
+
+  c.r(0, 0xffffffff);
+  c.r(1, 0xffffffff);
+  c.x("smlalbt r1, r0, r0, r0");
+  assert(c.r(0) == 0);
+  printf("r1: %x\n", c.r(1));
+  assert(c.r(1) == 0);
+
+  c.r(3, 0x12345678);
+  c.r(0, 0xff00ff00);
+  c.r(1, 0xff00ff);
+  c.x("smlald r1, r0, r0, r3");
+  assert(c.r(1) == 0x9654ff);
+
+  c.r(0, 0x12345678);
+  c.r(1, 0x87654321);
+  c.r(3, 0x87654321);
+  c.x("smlaldx r1, r0, r0, r3");
+  assert(c.r(1) == 0x636e9d2d);
+}
 
 static void testxtab() {
   Cpu c;
   c.r(0, 0xff);
 
   c.x("sxtab r1, r2, r0");
-  assert(c.r(1)==0xffffffff);
+  assert(c.r(1) == 0xffffffff);
   c.r(0, 0x12345678);
   c.x("sxtab16 r1, r2, r0");
-  assert(c.r(1)==0x340078);
+  assert(c.r(1) == 0x340078);
   c.r(0, 0x12348678);
   c.x("sxtah r1, r2, r0");
-  assert(c.r(1)==0xffff8678);
+  assert(c.r(1) == 0xffff8678);
   c.r(0, 0x800080);
   c.x("sxtb16 r1, r0");
-  assert(c.r(1)==0xff80ff80);
+  assert(c.r(1) == 0xff80ff80);
   c.r(0, 0x12345678);
   c.x("uxtab r1, r0, r0");
-  assert(c.r(1)==0x123456f0);
+  assert(c.r(1) == 0x123456f0);
   c.x("uxtab16 r1, r0, r0");
-  assert(c.r(1)==0x126856f0);  
+  assert(c.r(1) == 0x126856f0);
   c.x("uxtah r1, r0, r0");
-  assert(c.r(1)==0x1234acf0);
+  assert(c.r(1) == 0x1234acf0);
   c.x("uxtb r1, r0");
-  assert(c.r(1)==0x78);
+  assert(c.r(1) == 0x78);
   c.x("uxtb16 r1, r0");
-  assert(c.r(1)==0x340078);
+  assert(c.r(1) == 0x340078);
   c.x("uxth r1, r0");
-  assert(c.r(1)==0x5678);
+  assert(c.r(1) == 0x5678);
 }
 
 static void testubfx() {
