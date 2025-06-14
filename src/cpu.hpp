@@ -145,6 +145,46 @@ struct Cpu {
 
   inline void ge(u8 v) { apsr.b.ge = v & 0xf; }
 
+  void expectreg(u8 pos, u32 value) {
+    u32 real = r(pos);
+    if (real != value) {
+      printf("expected r%d to be 0x%x but found 0x%x\n", pos & 0xf, value,
+             real);
+      abort();
+    }
+  }
+
+  void expectV(bool value) {
+    if (v() != value) {
+      printf("Expected V = %d but found %d\n", value, v());
+      abort();
+    }
+  }
+  void expectC(bool value) {
+    if (c() != value) {
+      printf("Expected C = %d but found %d\n", value, c());
+      abort();
+    }
+  }
+  void expectZ(bool value) {
+    if (z() != value) {
+      printf("Expected Z = %d but found %d\n", value, z());
+      abort();
+    }
+  }
+  void expectQ(bool value) {
+    if (q() != value) {
+      printf("Expected Q = %d but found %d\n", value, q());
+      abort();
+    }
+  }
+  void expectN(bool value) {
+    if (n() != value) {
+      printf("Expected N = %d but found %d\n", value, n());
+      abort();
+    }
+  }
+
   void printRegisters() {
     printf("=========regs==========\n");
     for (u32 i = 0; i < 16; i++) {
@@ -1926,6 +1966,124 @@ struct Cpu {
       i64 res = i64(p1) + i64(p2) + s64((u64(r(dhi)) << 32) | r(dlo));
       r(dhi, uns32(res >> 32));
       r(dlo, uns32(res));
+    }
+    return nxt();
+  }
+
+  inline u32 smlawb() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 m = cur >> 8;
+      u8 a = cur >> 12;
+      u8 d = cur >> 16;
+      bool m_high = (cur >> 6) & 1;
+      u32 op2 = m_high ? r(m) >> 16 : r(m) & 0xffff;
+      i64 res = ((i64(u32(r(n))) * i64(s16(op2))) >> 16) + s32(r(a));
+      r(d, uns32(res));
+      if ((res) != s32(r(d))) {
+        q(1);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 smlsd() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 m = cur >> 8;
+      u8 a = cur >> 12;
+      u8 d = cur >> 16;
+      bool m_swap = (cur >> 5) & 1;
+      u32 op2 = m_swap ? Arith::ror32(r(m), 16).u() : r(m);
+      i64 p1 = i64(s16(r(n))) * i64(s16(op2));
+      i64 p2 = i64(s16(r(n) >> 16)) * i64(s16(op2 >> 16));
+      i64 res = p1 - p2 + s32(r(a));
+      r(d, uns32(res));
+      if (res != i32(res)) {
+        q(true);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 smlsld() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 m = cur >> 8;
+      u8 dlo = cur >> 12;
+      u8 dhi = cur >> 16;
+      bool m_swap = (cur >> 5) & 1;
+      u32 op2 = m_swap ? Arith::ror32(r(m), 16).u() : r(m);
+      i64 p1 = i64(s16(r(n))) * i64(s16(op2));
+      i64 p2 = i64(s16(r(n) >> 16)) * i64(s16(op2 >> 16));
+      i64 res = p1 - p2 + s64((u64(r(dhi)) << 32) | r(dlo));
+      r(dhi, uns32(res >> 32));
+      r(dlo, uns32(res));
+    }
+    return nxt();
+  }
+
+  inline u32 smmla() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 m = cur >> 8;
+      u8 a = cur >> 12;
+      u8 d = cur >> 16;
+      bool round = (cur >> 5) & 1;
+      u64 res = (i64(s32(r(a))) << 32) + (i64(s32(r(n))) * i64(s32(r(m))));
+      if (round) {
+        res += 0x80000000;
+      }
+      r(d, uns32(res >> 32));
+    }
+    return nxt();
+  }
+
+  inline u32 smmls() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 m = cur >> 8;
+      u8 a = cur >> 12;
+      u8 d = cur >> 16;
+      bool round = (cur >> 5) & 1;
+      u64 res = (i64(s32(r(a))) << 32) - (i64(s32(r(n))) * i64(s32(r(m))));
+      if (round) {
+        res += 0x80000000;
+      }
+      r(d, uns32(res >> 32));
+    }
+    return nxt();
+  }
+
+  inline u32 smmul() {
+    if(cnd()) {
+      u8 n = cur;
+      u8 m = cur >> 8;
+      u8 d = cur >> 16;
+      bool round = (cur >> 5) & 1;
+      u64 res = i64(s32(r(n))) * i64(s32(r(m)));
+      if (round) {
+        res += 0x80000000;
+      }
+      r(d, uns32(res >> 32));
+    }
+    return nxt();
+  }
+
+  inline u32 smuad() {
+    if(cnd()) {
+      u8 n = cur;
+      u8 m = cur>>8;
+      u8 d = cur>>16;
+      bool m_swap = (cur>>5)&1;
+      u32 op2 = m_swap?Arith::ror32(r(m), 16).u():r(m);
+      i64 p1 = i64(s16(r(n))) * i64(s16(op2));
+      i64 p2 = i64(s16(r(n)>>16)) * i64(s16(op2>>16));
+      i64 res = p1 + p2;
+      r(d, uns32(res));
+      if(res != i32(res)) {
+        q(1);
+      }
     }
     return nxt();
   }
