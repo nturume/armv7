@@ -1633,5 +1633,205 @@ struct Cpu {
     return nxt();
   }
 
+  inline u32 umaal() {
+    if(cnd()) {
+      u8 n = cur;
+      u8 m = cur>>8;
+      u8 dlo = cur>>12;
+      u8 dhi = cur>>16;
+
+      u64 res = u64(r(n)) * u64(r(m)) + u64(r(dhi)) + u64(r(dlo));
+      r(dhi, res>>32);
+      r(dlo, res);
+    }
+    return nxt();
+  }
+
+  inline u32 umlal() {
+    if(cnd()) {
+      u8 n = cur;
+      u8 m = cur>>8;
+      u8 dlo = cur>>12;
+      u8 dhi = cur>>16;
+
+      bool setflags = (cur>>20)&1;
+
+      u64 res = u64(r(n)) * u64(r(m)) + ((u64(r(dhi))<<32)|u64(r(dlo)));
+      r(dhi, res>>32);
+      r(dlo, res);
+
+      if(setflags) {
+        Cpu::n((res>>63)&1);
+        z(res==0);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 umull() {
+    if(cnd()){
+      u8 n = cur;
+      u8 m = cur>>8;
+      u8 dlo = cur>>12;
+      u8 dhi = cur>>16;
+
+      bool setflags = (cur>>20)&1;
+
+      u64 res = u64(r(n)) * u64(r(m));
+      r(dhi, res>>32);
+      r(dlo, res);
+      if(setflags) {
+        Cpu::n((res>>63)&1);
+        z(res==0);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 uxtab() {
+    if(cnd()) {
+      u8 m = cur;
+      u8 rotation = (cur>>7)&0b11000;
+      u8 d = cur>>12;
+      u8 n = cur>>16;
+      auto rotated = Arith::ror32(r(m), rotation);
+      r(d, r(n)+(rotated.u()&0xff));
+    }
+    return nxt();
+  }
+
+  inline u32 sxtab() {
+    if(cnd()) {
+      u8 m = cur;
+      u8 rotation = (cur>>7)&0b11000;
+      u8 d = cur>>12;
+      u8 n = cur>>16;
+      auto rotated = Arith::ror32(r(m), rotation);
+      r(d, r(n)+sx8(rotated.u()));
+    }
+    return nxt();
+  }
+
+  inline u32 uxtab16() {
+    if(cnd()) {
+      u8 m = cur;
+      u8 rotation = (cur>>7)&0b11000;
+      u8 d = cur>>12;
+      u8 n = cur>>16;
+      auto rotated = Arith::ror32(r(m), rotation);
+      u32 res = (u16(r(n)) + u16(u8(rotated.u()))) |
+                (u32((u16(r(n)>>16)) + u16(u8(rotated.u()>>16)))<<16);
+      r(d, res);
+    }
+    return nxt();
+  }
+
+  inline u32 sxtab16() {
+    if(cnd()) {
+      u8 m = cur;
+      u8 rotation = (cur>>7)&0b11000;
+      u8 d = cur>>12;
+      u8 n = cur>>16;
+      auto rotated = Arith::ror32(r(m), rotation);
+      u32 res = (u16(r(n)) + sx8(rotated.u())) |
+                (u32((u16(r(n)>>16)) + sx8(rotated.u()>>16))<<16);
+      r(d, res);
+    }
+    return nxt();
+  }
+
+  inline u32 uxtah() {
+    if(cnd()) {
+      u8 m = cur;
+      u8 rotation = (cur>>7)&0b11000;
+      u8 d = cur>>12;
+      u8 n = cur>>16;
+      auto rotated = Arith::ror32(r(m), rotation);
+      r(d, r(n)+(rotated.u()&0xffff));
+    }
+    return nxt();
+  }
+  
+  inline u32 sxtah() {
+    if(cnd()) {
+      u8 m = cur;
+      u8 rotation = (cur>>7)&0b11000;
+      u8 d = cur>>12;
+      u8 n = cur>>16;
+      auto rotated = Arith::ror32(r(m), rotation);
+      r(d, r(n)+sx16(rotated.u()));
+    }
+    return nxt();
+  }
+  
+  inline u32 uxtb() {
+    if(cnd()) {
+      u8 m = cur;
+      u8 rotation = (cur>>7)&0b11000;
+      u8 d = cur>>12;
+      auto rotated = Arith::ror32(r(m), rotation);
+      r(d, rotated.u()&0xff);
+    }
+    return nxt();
+  }
+
+  inline u32 sxtb() {
+    if(cnd()) {
+      u8 m = cur;
+      u8 rotation = (cur>>7)&0b11000;
+      u8 d = cur>>12;
+      auto rotated = Arith::ror32(r(m), rotation);
+      r(d, sx8(rotated.u()));
+    }
+    return nxt();
+  }
+
+  inline u32 uxth() {
+    if(cnd()) {
+      u8 m = cur;
+      u8 rotation = (cur>>7)&0b11000;
+      u8 d = cur>>12;
+      auto rotated = Arith::ror32(r(m), rotation);
+      r(d, rotated.u()&0xffff);
+    }
+    return nxt();
+  }
+
+  inline u32 sxth() {
+    if(cnd()) {
+      u8 m = cur;
+      u8 rotation = (cur>>7)&0b11000;
+      u8 d = cur>>12;
+      auto rotated = Arith::ror32(r(m), rotation);
+      r(d, sx16(rotated.u()));
+    }
+    return nxt();
+  }
+
+  inline u32 uxtb16() {
+    if(cnd()) {
+      u8 m = cur;
+      u8 rotation = (cur>>7)&0b11000;
+      u8 d = cur>>12;
+      auto rotated = Arith::ror32(r(m), rotation);
+      r(d, (rotated.u()&0xff00ff));
+    }
+    return nxt();
+  }
+
+  inline u32 sxtb16() {
+    if(cnd()) {
+      u8 m = cur;
+      u8 rotation = (cur>>7)&0b11000;
+      u8 d = cur>>12;
+      auto rotated = Arith::ror32(r(m), rotation);
+      u32 lo = sx8(rotated.u());
+      u32 hi = sx8(rotated.u()>>16);
+      r(d, (hi<<16) | (lo&0xffff));
+    }
+    return nxt();
+  }
+
+
   static void test();
 };

@@ -175,6 +175,36 @@ u32 Cpu::exec(u32 word) {
     return ubfx();
   case Instr::udiv:
     return udiv();
+  case Instr::umaal:
+    return umaal();
+  case Instr::umlal:
+    return umlal();
+  case Instr::umull:
+    return umull();
+  case Instr::uxtab:
+    return uxtab();
+  case Instr::uxtab16:
+    return uxtab16();
+  case Instr::uxtah:
+    return uxtah();
+  case Instr::uxtb:
+    return uxtb();
+  case Instr::uxtb16:
+    return uxtb16();
+  case Instr::uxth:
+    return uxth();
+  case Instr::sxtab:
+    return sxtab();
+  case Instr::sxtab16:
+    return sxtab16();
+  case Instr::sxtah:
+    return sxtah();
+  case Instr::sxth:
+    return sxth();
+  case Instr::sxtb:
+    return sxtb();
+  case Instr::sxtb16:
+    return sxtb16();
   default:
     printf("unhandled instruction: ");
     Decoder::printInstr(instr);
@@ -199,10 +229,12 @@ static void testq();
 static void testrbit();
 static void testdiv();
 static void testubfx();
+static void testxtab();
 
 void Cpu::test() {
+  testxtab();
   // testubfx();
-  testdiv();
+ // testdiv();
   // testrbit();
   // testq();
   //  testmrs();
@@ -216,6 +248,37 @@ void Cpu::test() {
   //     testadcShiftedReg();
   //     testadcReg();
   //     testadcImm();
+}
+
+
+static void testxtab() {
+  Cpu c;
+  c.r(0, 0xff);
+
+  c.x("sxtab r1, r2, r0");
+  assert(c.r(1)==0xffffffff);
+  c.r(0, 0x12345678);
+  c.x("sxtab16 r1, r2, r0");
+  assert(c.r(1)==0x340078);
+  c.r(0, 0x12348678);
+  c.x("sxtah r1, r2, r0");
+  assert(c.r(1)==0xffff8678);
+  c.r(0, 0x800080);
+  c.x("sxtb16 r1, r0");
+  assert(c.r(1)==0xff80ff80);
+  c.r(0, 0x12345678);
+  c.x("uxtab r1, r0, r0");
+  assert(c.r(1)==0x123456f0);
+  c.x("uxtab16 r1, r0, r0");
+  assert(c.r(1)==0x126856f0);  
+  c.x("uxtah r1, r0, r0");
+  assert(c.r(1)==0x1234acf0);
+  c.x("uxtb r1, r0");
+  assert(c.r(1)==0x78);
+  c.x("uxtb16 r1, r0");
+  assert(c.r(1)==0x340078);
+  c.x("uxth r1, r0");
+  assert(c.r(1)==0x5678);
 }
 
 static void testubfx() {
