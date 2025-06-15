@@ -14,8 +14,8 @@ struct Cpu {
   union APSR {
     struct {
       u32 _1 : 16;
-      u32 ge : 3;
-      u32 _2 : 8;
+      u32 ge : 4;
+      u32 _2 : 7;
       u32 q : 1;
       u32 v : 1;
       u32 c : 1;
@@ -185,6 +185,13 @@ struct Cpu {
   void expectN(bool value) {
     if (n() != value) {
       printf("Expected N = %d but found %d\n", value, n());
+      abort();
+    }
+  }
+
+  void expectG(u8 value) {
+    if (ge() != value) {
+      printf("Expected GE = %b but found %b\n", value & 0b1111, ge());
       abort();
     }
   }
@@ -2195,6 +2202,448 @@ struct Cpu {
       auto r2 = Arith::usat32((s16(r(n) >> 16)), saturate_to);
       r(d, (r1.u() & 0xffff) | (r2.u() << 16));
       q(r1.sat() or r2.sat());
+    }
+    return nxt();
+  }
+
+  inline u32 sadd16() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum1 = i32(s16(r(n))) + i32(s16(r(m)));
+      i32 sum2 = i32(s16(r(n) >> 16)) + i32(s16(r(m) >> 16));
+      r(d, (uns32(sum1) & 0xffff) | (uns32(sum2) << 16));
+      u8 g = 0;
+      g |= sum1 >= 0 ? 0b11 : 0;
+      g |= sum2 >= 0 ? 0b1100 : 0;
+      ge(g);
+    }
+    return nxt();
+  }
+
+  inline u32 uadd16() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum1 = i32(u16(r(n))) + i32(u16(r(m)));
+      i32 sum2 = i32(u16(r(n) >> 16)) + i32(u16(r(m) >> 16));
+      r(d, (uns32(sum1) & 0xffff) | (uns32(sum2) << 16));
+      u8 g = 0;
+      g |= sum1 >= 0x10000 ? 0b11 : 0;
+      g |= sum2 >= 0x10000 ? 0b1100 : 0;
+      ge(g);
+    }
+    return nxt();
+  }
+
+  inline u32 ssub16() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum1 = i32(s16(r(n))) - i32(s16(r(m)));
+      i32 sum2 = i32(s16(r(n) >> 16)) - i32(s16(r(m) >> 16));
+      r(d, (uns32(sum1) & 0xffff) | (uns32(sum2) << 16));
+      u8 g = 0;
+      g |= sum1 >= 0 ? 0b11 : 0;
+      g |= sum2 >= 0 ? 0b1100 : 0;
+      ge(g);
+    }
+    return nxt();
+  }
+
+  inline u32 usub16() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum1 = i32(u16(r(n))) - i32(u16(r(m)));
+      i32 sum2 = i32(u16(r(n) >> 16)) - i32(u16(r(m) >> 16));
+      r(d, (uns32(sum1) & 0xffff) | (uns32(sum2) << 16));
+      u8 g = 0;
+      g |= sum1 >= 0 ? 0b11 : 0;
+      g |= sum2 >= 0 ? 0b1100 : 0;
+      ge(g);
+    }
+    return nxt();
+  }
+
+  inline u32 sadd8() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum1 = i32(s8(r(n))) + i32(s8(r(m)));
+      i32 sum2 = i32(s8(r(n) >> 8)) + i32(s8(r(m) >> 8));
+      i32 sum3 = i32(s8(r(n) >> 16)) + i32(s8(r(m) >> 16));
+      i32 sum4 = i32(s8(r(n) >> 24)) + i32(s8(r(m) >> 24));
+      u32 res = (uns32(sum1) & 0xff) | ((uns32(sum2) & 0xff) << 8) |
+                ((uns32(sum3) & 0xff) << 16) | ((uns32(sum4) & 0xff) << 24);
+      r(d, res);
+      u8 g = 0;
+      if (sum1 >= 0)
+        g |= 1;
+      if (sum2 >= 0)
+        g |= 0b10;
+      if (sum3 >= 0)
+        g |= 0b100;
+      if (sum4 >= 0)
+        g |= 0b1000;
+      ge(g);
+    }
+    return nxt();
+  }
+
+  inline u32 uadd8() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum1 = i32(u8(r(n))) + i32(u8(r(m)));
+      i32 sum2 = i32(u8(r(n) >> 8)) + i32(u8(r(m) >> 8));
+      i32 sum3 = i32(u8(r(n) >> 16)) + i32(u8(r(m) >> 16));
+      i32 sum4 = i32(u8(r(n) >> 24)) + i32(u8(r(m) >> 24));
+      u32 res = (uns32(sum1) & 0xff) | ((uns32(sum2) & 0xff) << 8) |
+                ((uns32(sum3) & 0xff) << 16) | ((uns32(sum4) & 0xff) << 24);
+      r(d, res);
+      u8 g = 0;
+      if (sum1 >= 0x100)
+        g |= 1;
+      if (sum2 >= 0x100)
+        g |= 0b10;
+      if (sum3 >= 0x100)
+        g |= 0b100;
+      if (sum4 >= 0x100)
+        g |= 0b1000;
+      ge(g);
+    }
+    return nxt();
+  }
+
+  inline u32 ssub8() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum1 = i32(s8(r(n))) - i32(s8(r(m)));
+      i32 sum2 = i32(s8(r(n) >> 8)) - i32(s8(r(m) >> 8));
+      i32 sum3 = i32(s8(r(n) >> 16)) - i32(s8(r(m) >> 16));
+      i32 sum4 = i32(s8(r(n) >> 24)) - i32(s8(r(m) >> 24));
+      u32 res = (uns32(sum1) & 0xff) | ((uns32(sum2) & 0xff) << 8) |
+                ((uns32(sum3) & 0xff) << 16) | ((uns32(sum4) & 0xff) << 24);
+      r(d, res);
+      u8 g = 0;
+      if (sum1 >= 0)
+        g |= 1;
+      if (sum2 >= 0)
+        g |= 0b10;
+      if (sum3 >= 0)
+        g |= 0b100;
+      if (sum4 >= 0)
+        g |= 0b1000;
+      ge(g);
+    }
+    return nxt();
+  }
+
+  inline u32 usub8() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum1 = i32(u8(r(n))) - i32(u8(r(m)));
+      i32 sum2 = i32(u8(r(n) >> 8)) - i32(u8(r(m) >> 8));
+      i32 sum3 = i32(u8(r(n) >> 16)) - i32(u8(r(m) >> 16));
+      i32 sum4 = i32(u8(r(n) >> 24)) - i32(u8(r(m) >> 24));
+      u32 res = (uns32(sum1) & 0xff) | ((uns32(sum2) & 0xff) << 8) |
+                ((uns32(sum3) & 0xff) << 16) | ((uns32(sum4) & 0xff) << 24);
+      r(d, res);
+      u8 g = 0;
+      if (sum1 >= 0)
+        g |= 1;
+      if (sum2 >= 0)
+        g |= 0b10;
+      if (sum3 >= 0)
+        g |= 0b100;
+      if (sum4 >= 0)
+        g |= 0b1000;
+      ge(g);
+    }
+    return nxt();
+  }
+
+  inline u32 sasx() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 dif = i32(s16(r(n))) - i32(s16(r(m) >> 16));
+      i32 sum = i32(s16(r(n) >> 16)) + i32(s16(r(m)));
+      u32 res = (uns32(dif) & 0xffff) | (uns32(sum) << 16);
+      r(d, res);
+      u8 g = 0;
+      if (dif >= 0)
+        g |= 0b11;
+      if (sum >= 0)
+        g |= 0b1100;
+      ge(g);
+    }
+    return nxt();
+  }
+
+  inline u32 uasx() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 dif = i32(u16(r(n))) - i32(u16(r(m) >> 16));
+      i32 sum = i32(u16(r(n) >> 16)) + i32(u16(r(m)));
+      u32 res = (uns32(dif) & 0xffff) | (uns32(sum) << 16);
+      r(d, res);
+      u8 g = 0;
+      if (dif >= 0)
+        g |= 0b11;
+      if (sum >= 0x10000)
+        g |= 0b1100;
+      ge(g);
+    }
+    return nxt();
+  }
+
+  inline u32 sel() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      u32 res = 0;
+      u8 g = ge();
+      res |= (g & 1 ? r(n) : r(m)) & 0xff;
+      res |= (g & 0b10 ? r(n) : r(m)) & 0xff00;
+      res |= (g & 0b100 ? r(n) : r(m)) & 0xff0000;
+      res |= (g & 0b1000 ? r(n) : r(m)) & 0xff000000;
+      r(d, res);
+    }
+    return nxt();
+  }
+
+  inline u32 shadd16() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum1 = i32(s16(r(n))) + i32(s16(r(m)));
+      i32 sum2 = i32(s16(r(n) >> 16)) + i32(s16(r(m) >> 16));
+      r(d,
+        ((uns32(sum1) >> 1) & 0xffff) | (((uns32(sum2) >> 1) & 0xffff) << 16));
+    }
+    return nxt();
+  }
+
+  inline u32 uhadd16() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum1 = i32(u16(r(n))) + i32(u16(r(m)));
+      i32 sum2 = i32(u16(r(n) >> 16)) + i32(u16(r(m) >> 16));
+      r(d,
+        ((uns32(sum1) >> 1) & 0xffff) | (((uns32(sum2) >> 1) & 0xffff) << 16));
+    }
+    return nxt();
+  }
+
+  inline u32 shsub16() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum1 = i32(s16(r(n))) - i32(s16(r(m)));
+      i32 sum2 = i32(s16(r(n) >> 16)) - i32(s16(r(m) >> 16));
+      r(d,
+        ((uns32(sum1) >> 1) & 0xffff) | (((uns32(sum2) >> 1) & 0xffff) << 16));
+    }
+    return nxt();
+  }
+
+  inline u32 uhsub16() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum1 = i32(u16(r(n))) - i32(u16(r(m)));
+      i32 sum2 = i32(u16(r(n) >> 16)) - i32(u16(r(m) >> 16));
+      r(d,
+        ((uns32(sum1) >> 1) & 0xffff) | (((uns32(sum2) >> 1) & 0xffff) << 16));
+    }
+    return nxt();
+  }
+
+  inline u32 shadd8() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum1 = i32(s8(r(n))) + i32(s8(r(m)));
+      i32 sum2 = i32(s8(r(n) >> 8)) + i32(s8(r(m) >> 8));
+      i32 sum3 = i32(s8(r(n) >> 16)) + i32(s8(r(m) >> 16));
+      i32 sum4 = i32(s8(r(n) >> 24)) + i32(s8(r(m) >> 24));
+      u32 res = ((uns32(sum1) >> 1) & 0xff) |
+                (((uns32(sum2) >> 1) & 0xff) << 8) |
+                (((uns32(sum3) >> 1) & 0xff) << 16) |
+                (((uns32(sum4) >> 1) & 0xff) << 24);
+      r(d, res);
+    }
+    return nxt();
+  }
+
+  inline u32 uhadd8() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum1 = i32(u8(r(n))) + i32(u8(r(m)));
+      i32 sum2 = i32(u8(r(n) >> 8)) + i32(u8(r(m) >> 8));
+      i32 sum3 = i32(u8(r(n) >> 16)) + i32(u8(r(m) >> 16));
+      i32 sum4 = i32(u8(r(n) >> 24)) + i32(u8(r(m) >> 24));
+      u32 res = ((uns32(sum1) >> 1) & 0xff) |
+                (((uns32(sum2) >> 1) & 0xff) << 8) |
+                (((uns32(sum3) >> 1) & 0xff) << 16) |
+                (((uns32(sum4) >> 1) & 0xff) << 24);
+      r(d, res);
+    }
+    return nxt();
+  }
+
+  inline u32 shsub8() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum1 = i32(s8(r(n))) - i32(s8(r(m)));
+      i32 sum2 = i32(s8(r(n) >> 8)) - i32(s8(r(m) >> 8));
+      i32 sum3 = i32(s8(r(n) >> 16)) - i32(s8(r(m) >> 16));
+      i32 sum4 = i32(s8(r(n) >> 24)) - i32(s8(r(m) >> 24));
+      u32 res = ((uns32(sum1) >> 1) & 0xff) |
+                (((uns32(sum2) >> 1) & 0xff) << 8) |
+                (((uns32(sum3) >> 1) & 0xff) << 16) |
+                (((uns32(sum4) >> 1) & 0xff) << 24);
+      r(d, res);
+    }
+    return nxt();
+  }
+
+  inline u32 uhsub8() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum1 = i32(u8(r(n))) - i32(u8(r(m)));
+      i32 sum2 = i32(u8(r(n) >> 8)) - i32(u8(r(m) >> 8));
+      i32 sum3 = i32(u8(r(n) >> 16)) - i32(u8(r(m) >> 16));
+      i32 sum4 = i32(u8(r(n) >> 24)) - i32(u8(r(m) >> 24));
+      u32 res = ((uns32(sum1) >> 1) & 0xff) |
+                (((uns32(sum2) >> 1) & 0xff) << 8) |
+                (((uns32(sum3) >> 1) & 0xff) << 16) |
+                (((uns32(sum4) >> 1) & 0xff) << 24);
+      r(d, res);
+    }
+    return nxt();
+  }
+
+  inline u32 shasx() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 dif = i32(s16(r(n))) - i32(s16(r(m) >> 16));
+      i32 sum = i32(s16(r(n) >> 16)) + i32(s16(r(m)));
+      u32 res = ((uns32(dif) >> 1) & 0xffff) | ((uns32(sum) >> 1) << 16);
+      r(d, res);
+    }
+    return nxt();
+  }
+
+  inline u32 uhasx() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 dif = i32(u16(r(n))) - i32(u16(r(m) >> 16));
+      i32 sum = i32(u16(r(n) >> 16)) + i32(u16(r(m)));
+      u32 res = ((uns32(dif) >> 1) & 0xffff) | ((uns32(sum) >> 1) << 16);
+      r(d, res);
+    }
+    return nxt();
+  }
+
+  inline u32 ssax() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum = i32(s16(r(n))) + i32(s16(r(m) >> 16));
+      i32 diff = i32(s16(r(n) >> 16)) - i32(s16(r(m)));
+      u32 res = (uns32(sum) & 0xffff) | (uns32(diff) << 16);
+      r(d, res);
+      u8 g = 0;
+      if (sum >= 0)
+        g |= 0b11;
+      if (diff >= 0)
+        g |= 0b1100;
+      ge(g);
+    }
+    return nxt();
+  }
+
+  inline u32 usax() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      u32 sum = u32(u16(r(n))) + u32(u16(r(m) >> 16));
+      i32 diff = i32(u16(r(n) >> 16)) - i32(u16(r(m)));
+      u32 res = (sum & 0xffff) | (u32(diff) << 16);
+      r(d, res);
+      u8 g = 0;
+      if (sum >= 0x10000)
+        g |= 0b11;
+      if (diff >= 0)
+        g |= 0b1100;
+      ge(g);
+    }
+    return nxt();
+  }
+
+  inline u32 shsax() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum = i32(s16(r(n))) + i32(s16(r(m) >> 16));
+      i32 diff = i32(s16(r(n) >> 16)) - i32(s16(r(m)));
+      u32 res = ((uns32(sum) >> 1) & 0xffff) | ((uns32(diff) >> 1) << 16);
+      r(d, res);
+      u8 g = 0;
+      if (sum >= 0)
+        g |= 0b11;
+      if (diff >= 0)
+        g |= 0b1100;
+      ge(g);
+    }
+    return nxt();
+  }
+
+  inline u32 uhsax() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      i32 sum = i32(u16(r(n))) + i32(u16(r(m) >> 16));
+      i32 diff = i32(u16(r(n) >> 16)) - i32(u16(r(m)));
+      u32 res = ((uns32(sum) >> 1) & 0xffff) | ((uns32(diff) >> 1) << 16);
+      r(d, res);
     }
     return nxt();
   }
