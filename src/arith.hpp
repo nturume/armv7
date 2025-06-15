@@ -16,18 +16,14 @@ struct Res {
   } v;
   bool c;
 
-  inline u32 u(){
-    return v.u;
-  }
+  inline u32 u() { return v.u; }
 
-  inline i32 i(){
-    return v.i;
-  }
+  inline i32 i() { return v.i; }
   inline bool n() { return (v.u & 0x80000000) > 0; }
 
   inline bool z() { return v.u == 0; }
 
-  inline bool sat(){return c;}
+  inline bool sat() { return c; }
 };
 
 static inline Res lsl32(u32 v, u8 n) {
@@ -101,41 +97,35 @@ static inline Res rrx32(u32 v, u8 carry_in) {
 
 static inline Res signedSat32(u32 v, u32 n) {
   Res r = Res{.v = {.u = v}, .c = false};
-  i64 p = u32(1)<<(n-1);
-  printf("chacking: %x %d %u bits: %d\n", v,v,v, n);
-  assert(false);
-  /*if (i64(r.v.i) > p - 1) {
+  i64 p = i64(1) << (n - 1);
+  i64 integer = i64(r.i());
+  if (integer > (p - 1)) {
     r.c = true;
     r.v.i = p - 1;
-  } else if (i64(r.v.i) < -p) {
+  } else if (integer < -p) {
     r.c = true;
     r.v.i = -p;
-  }*/
+  }
   return r;
 }
 
-static inline Res unsignedSat32(u32 v, u32 n) {
-  Res r = Res{.v = {.u = v}, .c = false};
-  u64 p = u64(1)<<n;
-  if (u64(r.v.u) > p - 1) {
+static inline Res unsignedSat32(i32 v, u32 n) {
+  Res r = Res{.v = {.i = v}, .c = false};
+  i64 p = u64(1) << n;
+  i64 integer = r.v.i;
+  if (integer > p - 1) {
     r.c = true;
     r.v.i = p - 1;
+  } else if (integer < 0) {
+    r.c = true;
+    r.v.u = 0;
   }
-  // else if(r.v.u < 0) {
-  //   // unreachable
-  //   r.c = true;
-  //   r.v.u = 0;
-  // }
   return r;
 }
 
-inline Res usat32(u32 v, u32 n) {
-  return unsignedSat32(v,n);
-}
+inline Res usat32(u32 v, u32 n) { return unsignedSat32(v, n); }
 
-inline Res ssat32(i32 v, u32 n) {
-  return signedSat32(v, n);
-}
+inline Res ssat32(i32 v, u32 n) { return signedSat32(v, n); }
 
 static inline Res sat32(u32 v, u32 n, bool sign) {
   if (sign) {
@@ -143,6 +133,91 @@ static inline Res sat32(u32 v, u32 n, bool sign) {
     return signedSat32(r.v.i, n);
   }
   return unsignedSat32(v, n);
+}
+
+static inline Res s32satAdd(u32 a, u32 b) {
+  u32 res = a + b;
+  bool saturated = false;
+  if (((res ^ a) & 0x80000000) && !((a ^ b) & 0x80000000)) {
+    if (a & 0x80000000) {
+      res = 0x80000000;
+    } else {
+      res = 0x7fffffff;
+    }
+    saturated = true;
+  }
+  return {.v = {.u = res}, .c = saturated };
+}
+
+static inline Res s32satSub(u32 a, u32 b) {
+  u32 res = a - b;
+  bool saturated = false;
+  if (((res ^ a) & 0x80000000) && ((a ^ b) & 0x80000000)) {
+    if (a & 0x80000000) {
+      res = 0x80000000;
+    } else {
+      res = 0x7fffffff;
+    }
+    saturated = true;
+  }
+  return {.v = {.u = res}, .c = saturated };
+}
+
+
+static inline Res s16satAdd(u16 a, u16 b) {
+  u32 res = a + b;
+  bool saturated = false;
+  if (((res ^ a) & 0x8000) && !((a ^ b) & 0x8000)) {
+    if (a & 0x8000) {
+      res = 0x8000;
+    } else {
+      res = 0x7fff;
+    }
+    saturated = true;
+  }
+  return {.v = {.u = res}, .c = saturated };
+}
+
+static inline Res s16satSub(u16 a, u16 b) {
+  u32 res = a - b;
+  bool saturated = false;
+  if (((res ^ a) & 0x8000) && ((a ^ b) & 0x8000)) {
+    if (a & 0x8000) {
+      res = 0x8000;
+    } else {
+      res = 0x7fff;
+    }
+    saturated = true;
+  }
+  return {.v = {.u = res}, .c = saturated };
+}
+
+static inline Res s8satAdd(u8 a, u8 b) {
+  u32 res = a + b;
+  bool saturated = false;
+  if (((res ^ a) & 0x80) && !((a ^ b) & 0x80)) {
+    if (a & 0x80) {
+      res = 0x80;
+    } else {
+      res = 0x7f;
+    }
+    saturated = true;
+  }
+  return {.v = {.u = res}, .c = saturated };
+}
+
+static inline Res s8satSub(u8 a, u8 b) {
+  u32 res = a - b;
+  bool saturated = false;
+  if (((res ^ a) & 0x80) && ((a ^ b) & 0x80)) {
+    if (a & 0x80) {
+      res = 0x80;
+    } else {
+      res = 0x7f;
+    }
+    saturated = true;
+  }
+  return {.v = {.u = res}, .c = saturated };
 }
 
 /// type must be pre masked
@@ -218,11 +293,11 @@ static void usatTest() {
 static void ssatTest() {
   assert(signedSat32(3, 1).c);
   assert(signedSat32(3, 1).v.i == 0);
-  assert(signedSat32(0xffffffff, 32).c==false);
+  assert(signedSat32(0xffffffff, 32).c == false);
   assert(signedSat32(129, 8).v.u == 127);
   assert(signedSat32(0xff, 8).v.u == 127);
   assert(sat32(0xff, 8, true).v.u == 127);
-  assert(signedSat32(-150, 8).v.i==-128);
+  assert(signedSat32(-150, 8).v.i == -128);
 }
 
 static void adcTest() {

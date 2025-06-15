@@ -150,6 +150,10 @@ struct Cpu {
     if (real != value) {
       printf("expected r%d to be 0x%x but found 0x%x\n", pos & 0xf, value,
              real);
+      printf("expected r%d to be 0b%b but found 0b%b\n", pos & 0xf, value,
+             real);
+      printf("r1 0b%b r2 0b%b\n", r(1), r(2));
+      printf("r1 0x%x r2 0x%x\n", r(1), r(2));
       abort();
     }
   }
@@ -1376,7 +1380,7 @@ struct Cpu {
       u8 m = cur;
       u8 n = cur >> 16;
       u8 d = cur >> 12;
-      auto sat = Arith::signedSat32(s32(r(m) + r(n)), 32);
+      auto sat = Arith::s32satAdd(r(m), r(n));
       r(d, sat.u());
       q(sat.sat());
     }
@@ -1388,11 +1392,8 @@ struct Cpu {
       u8 m = cur;
       u8 n = cur >> 16;
       u8 d = cur >> 12;
-
-      auto sum1 = Arith::ssat32(i32(s16(r(n))) + i32(s16(r(m))), 16);
-      auto sum2 =
-          Arith::ssat32(i32(s16(r(n) >> 16)) + i32(s16(r(m) >> 16)), 16);
-
+      auto sum1 = Arith::s16satAdd(r(n), r(m));
+      auto sum2 = Arith::s16satAdd(r(n) >> 16, r(m) >> 16);
       r(d, (sum1.u() & 0xffff) | (sum2.u() << 16));
     }
     return nxt();
@@ -1404,11 +1405,10 @@ struct Cpu {
       u8 n = cur >> 16;
       u8 d = cur >> 12;
       using namespace Arith;
-      auto sum1 = ssat32(i32(s8(r(n))) + i32(s8(r(m))), 8);
-      auto sum2 = ssat32(i32(s8(r(n) >> 8)) + i32(s8(r(m) >> 8)), 8);
-      auto sum3 = ssat32(i32(s8(r(n) >> 16)) + i32(s8(r(m) >> 16)), 8);
-      auto sum4 = ssat32(i32(s8(r(n) >> 24)) + i32(s8(r(m) >> 24)), 8);
-
+      auto sum1 = s8satAdd(r(n), r(m));
+      auto sum2 = s8satAdd(r(n) >> 8, r(m) >> 8);
+      auto sum3 = s8satAdd(r(n) >> 16, r(m) >> 16);
+      auto sum4 = s8satAdd(r(n) >> 24, r(m) >> 24);
       r(d, (sum1.u() & 0xff) | ((sum2.u() & 0xff) << 8) |
                ((sum3.u() & 0xff) << 16) | ((sum4.u() & 0xff) << 24));
     }
@@ -1420,7 +1420,7 @@ struct Cpu {
       u8 m = cur;
       u8 n = cur >> 16;
       u8 d = cur >> 12;
-      auto sat = Arith::signedSat32(s32(r(m)) - s32(r(n)), 32);
+      auto sat = Arith::s32satSub(r(m), r(n));
       r(d, sat.u());
       q(sat.sat());
     }
@@ -1432,11 +1432,8 @@ struct Cpu {
       u8 m = cur;
       u8 n = cur >> 16;
       u8 d = cur >> 12;
-
-      auto diff1 = Arith::ssat32(i32(s16(r(n))) - i32(s16(r(m))), 16);
-      auto diff2 =
-          Arith::ssat32(i32(s16(r(n) >> 16)) - i32(s16(r(m) >> 16)), 16);
-
+      auto diff1 = Arith::s16satSub(r(n), r(m));
+      auto diff2 = Arith::s16satSub(r(n) >> 16, r(m) >> 16);
       r(d, (diff1.u() & 0xffff) | (diff2.u() << 16));
     }
     return nxt();
@@ -1448,11 +1445,10 @@ struct Cpu {
       u8 n = cur >> 16;
       u8 d = cur >> 12;
       using namespace Arith;
-      auto diff1 = ssat32(i32(s8(r(n))) - i32(s8(r(m))), 8);
-      auto diff2 = ssat32(i32(s8(r(n) >> 8)) - i32(s8(r(m) >> 8)), 8);
-      auto diff3 = ssat32(i32(s8(r(n) >> 16)) - i32(s8(r(m) >> 16)), 8);
-      auto diff4 = ssat32(i32(s8(r(n) >> 24)) - i32(s8(r(m) >> 24)), 8);
-
+      auto diff1 = s8satSub(r(n), r(m));
+      auto diff2 = s8satSub(r(n) >> 8, r(m) >> 8);
+      auto diff3 = s8satSub(r(n) >> 16, r(m) >> 16);
+      auto diff4 = s8satSub(r(n) >> 24, r(m) >> 24);
       r(d, (diff1.u() & 0xff) | ((diff2.u() & 0xff) << 8) |
                ((diff3.u() & 0xff) << 16) | ((diff4.u() & 0xff) << 24));
     }
@@ -1465,8 +1461,8 @@ struct Cpu {
       u8 n = cur >> 16;
       u8 d = cur >> 12;
       using namespace Arith;
-      auto diff = ssat32(i32(s16(r(n))) - i32(s16(r(m) >> 16)), 16);
-      auto sum = ssat32(i32(s16(r(n) >> 16)) + i32(s16(r(m))), 16);
+      auto diff = s16satSub(r(n), r(m) >> 16);
+      auto sum = s16satAdd(r(n) >> 16, r(m));
       r(d, (diff.u() & 0xffff) | (sum.u() << 16));
     }
     return nxt();
@@ -1478,8 +1474,8 @@ struct Cpu {
       u8 n = cur >> 16;
       u8 d = cur >> 12;
       using namespace Arith;
-      auto sum = ssat32(i32(s16(r(n))) + i32(s16(r(m) >> 16)), 16);
-      auto diff = ssat32(i32(s16(r(n) >> 16)) - i32(s16(r(m))), 16);
+      auto sum = s16satAdd(r(n), r(m) >> 16);
+      auto diff = s16satSub(r(n) >> 16, r(m));
       r(d, (sum.u() & 0xffff) | (diff.u() << 16));
     }
     return nxt();
@@ -1491,8 +1487,8 @@ struct Cpu {
       u8 n = cur >> 16;
       u8 d = cur >> 12;
       using namespace Arith;
-      auto sat1 = ssat32(s32(r(n)) * 2, 32);
-      auto sat2 = ssat32(s32(r(m)) + sat1.i(), 32);
+      auto sat1 = s32satAdd(r(n), r(n));
+      auto sat2 = s32satAdd(r(m), sat1.u());
       r(d, sat2.u());
       if (sat1.sat() || sat2.sat())
         q(1);
@@ -1506,8 +1502,8 @@ struct Cpu {
       u8 n = cur >> 16;
       u8 d = cur >> 12;
       using namespace Arith;
-      auto sat1 = ssat32(s32(r(n)) * 2, 32);
-      auto sat2 = ssat32(s32(r(m)) - sat1.i(), 32);
+      auto sat1 = s32satAdd(r(n), r(n));
+      auto sat2 = s32satSub(r(m), sat1.u());
       r(d, sat2.u());
       if (sat1.sat() || sat2.sat())
         q(1);
@@ -1885,7 +1881,7 @@ struct Cpu {
       u32 op2 = m_high ? r(m) >> 16 : r(m) & 0xffff;
       i64 res = i64(s16(op1)) * i64(s16(op2)) + i64(s32(r(a)));
       r(d, uns32(res));
-      if (res != i32(res)) {
+      if (res != (s32(r(d)))) {
         q(1);
       }
     }
@@ -1957,10 +1953,8 @@ struct Cpu {
       u8 m = cur >> 8;
       u8 dlo = cur >> 12;
       u8 dhi = cur >> 16;
-
       bool m_swap = (cur >> 5) & 1;
       u32 op2 = m_swap ? Arith::ror32(r(m), 16).u() : r(m);
-
       i32 p1 = i32(s16(r(n))) * i32(s16(op2));
       i32 p2 = i32(s16(r(n) >> 16)) * i32(s16(op2 >> 16));
       i64 res = i64(p1) + i64(p2) + s64((u64(r(dhi)) << 32) | r(dlo));
@@ -2056,7 +2050,7 @@ struct Cpu {
   }
 
   inline u32 smmul() {
-    if(cnd()) {
+    if (cnd()) {
       u8 n = cur;
       u8 m = cur >> 8;
       u8 d = cur >> 16;
@@ -2071,19 +2065,136 @@ struct Cpu {
   }
 
   inline u32 smuad() {
-    if(cnd()) {
+    if (cnd()) {
       u8 n = cur;
-      u8 m = cur>>8;
-      u8 d = cur>>16;
-      bool m_swap = (cur>>5)&1;
-      u32 op2 = m_swap?Arith::ror32(r(m), 16).u():r(m);
+      u8 m = cur >> 8;
+      u8 d = cur >> 16;
+      bool m_swap = (cur >> 5) & 1;
+      u32 op2 = m_swap ? Arith::ror32(r(m), 16).u() : r(m);
       i64 p1 = i64(s16(r(n))) * i64(s16(op2));
-      i64 p2 = i64(s16(r(n)>>16)) * i64(s16(op2>>16));
+      i64 p2 = i64(s16(r(n) >> 16)) * i64(s16(op2 >> 16));
       i64 res = p1 + p2;
       r(d, uns32(res));
-      if(res != i32(res)) {
+      if (res != i32(res)) {
         q(1);
       }
+    }
+    return nxt();
+  }
+
+  inline u32 smulbb() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 m = cur >> 8;
+      u8 d = cur >> 16;
+      bool m_high = (cur >> 6) & 1;
+      bool n_high = (cur >> 5) & 1;
+      u32 op1 = n_high ? r(n) >> 16 : r(n) & 0xffff;
+      u32 op2 = m_high ? r(m) >> 16 : r(m) & 0xffff;
+      i32 res = i32(s16(op1)) * i32(s16(op2));
+      r(d, uns32(res));
+    }
+    return nxt();
+  }
+
+  inline u32 smull() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 m = cur >> 8;
+      u8 dlo = cur >> 12;
+      u8 dhi = cur >> 16;
+      bool setflags = (cur >> 20) & 1;
+      i64 res = i64(s32(r(n))) * i64(s32(r(m)));
+      r(dhi, uns32(res >> 32));
+      r(dlo, uns32(res));
+      if (setflags) {
+        Cpu::n((res >> 63) & 1);
+        z(res == 0);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 smulwb() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 m = cur >> 8;
+      u8 d = cur >> 16;
+      bool m_high = (cur >> 6) & 1;
+      u32 op2 = m_high ? r(m) >> 16 : r(m) & 0xffff;
+      i64 p = i64(s32(r(n))) * i64(s16(op2));
+      r(d, uns32(p >> 16));
+    }
+    return nxt();
+  }
+
+  inline u32 smusd() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 m = cur >> 8;
+      u8 d = cur >> 16;
+      bool m_swap = (cur >> 5) & 1;
+      u32 op2 = m_swap ? Arith::ror32(r(m), 16).u() : r(m);
+      i32 p1 = i32(s16(r(n))) * i32(s16(op2));
+      i32 p2 = i32(s16(r(n) >> 16)) * i32(s16(op2 >> 16));
+      i32 res = p1 - p2;
+      r(d, uns32(res));
+    }
+    return nxt();
+  }
+
+  inline u32 ssat() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 d = cur >> 12;
+      u8 saturate_to = ((cur >> 16) & 0b11111) + 1;
+      u8 imm5 = (cur >> 7) & 0b11111;
+      u8 sh = (cur >> 5) & 0b10;
+      u32 op = Arith::shiftC(r(n), sh, imm5, c()).u();
+      auto sat = Arith::ssat32(op, saturate_to);
+      r(d, sat.i());
+      q(sat.sat());
+    }
+    return nxt();
+  }
+
+  inline u32 ssat16() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 d = cur >> 12;
+      u8 saturate_to = ((cur >> 16) & 0b1111) + 1;
+      auto r1 = Arith::ssat32(s16(r(n)), saturate_to);
+      auto r2 = Arith::ssat32(s16(r(n) >> 16), saturate_to);
+      r(d, (r1.u() & 0xffff) | (r2.u() << 16));
+      q(r1.sat() or r2.sat());
+    }
+    return nxt();
+  }
+
+  inline u32 usat() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 d = cur >> 12;
+      u8 saturate_to = ((cur >> 16) & 0b11111);
+      u8 imm5 = (cur >> 7) & 0b11111;
+      u8 sh = (cur >> 5) & 0b10;
+      u32 op = Arith::shiftC(r(n), sh, imm5, c()).u();
+      auto sat = Arith::usat32(s32(op), saturate_to);
+      r(d, sat.u());
+      q(sat.sat());
+    }
+    return nxt();
+  }
+
+  inline u32 usat16() {
+    if (cnd()) {
+      u8 n = cur;
+      u8 d = cur >> 12;
+      u8 saturate_to = ((cur >> 16) & 0b1111);
+      auto r1 = Arith::usat32((s16(r(n))), saturate_to);
+      auto r2 = Arith::usat32((s16(r(n) >> 16)), saturate_to);
+      r(d, (r1.u() & 0xffff) | (r2.u() << 16));
+      q(r1.sat() or r2.sat());
     }
     return nxt();
   }
