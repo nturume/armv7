@@ -1979,7 +1979,7 @@ struct Cpu {
       u8 d = cur >> 16;
       bool m_high = (cur >> 6) & 1;
       u32 op2 = m_high ? r(m) >> 16 : r(m) & 0xffff;
-      i64 res = ((i64(u32(r(n))) * i64(s16(op2))) >> 16) + s32(r(a));
+      i64 res = ((i64(s32(r(n))) * i64(s16(op2))) >> 16) + s32(r(a));
       r(d, uns32(res));
       if ((res) != s32(r(d))) {
         q(1);
