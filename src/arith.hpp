@@ -28,6 +28,10 @@ struct Res {
 
 static inline Res lsl32(u32 v, u8 n) {
   Res res{.v = {.u = v}, .c = false};
+  if (n >= 32) {
+    res.v.u = 0;
+    return res;
+  }
   asm volatile("movb %[a], %%cl\n"
                "shll %%cl, %[b]\n"
                "setc %[c]\n"
@@ -38,6 +42,10 @@ static inline Res lsl32(u32 v, u8 n) {
 
 static inline Res lsr32(u32 v, u8 n) {
   Res res = {.v = {.u = v}, .c = false};
+  if (n >= 32) {
+    res.v.u = 0;
+    return res;
+  }
   asm volatile("movb %[a], %%cl\n"
                "shrl %%cl, %[b]\n"
                "setc %[c]\n"
@@ -70,6 +78,10 @@ static inline Adc adc(u32 a, u32 b, bool carry) {
 
 static inline Res asr32(u32 v, u8 n) {
   Res res = {.v = {.u = v}, .c = false};
+  if (n >= 32) {
+    res.v.u = 0;
+    return res;
+  }
   asm volatile("movb %[a], %%cl\n"
                "sarl %%cl, %[b]\n"
                "setc %[c]\n"

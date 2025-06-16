@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <string>
+#include "test.hpp"
 
 u32 Cpu::exec(u32 word) {
   cur = word;
@@ -334,4 +335,6 @@ u32 Cpu::exec(u32 word) {
 
 u32 Cpu::x(const char *prog) { return exec(assemble(prog)); }
 
-void Cpu::test() {}
+void Cpu::test() {
+  tester();
+}
