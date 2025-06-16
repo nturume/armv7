@@ -120,3 +120,6 @@ inline u32 sx16(u16 v) {
   return uns32(i32(x.i));
 }
 
+static inline i32 abs32(i32 v) {
+  return v>=0?v:-v;
+}

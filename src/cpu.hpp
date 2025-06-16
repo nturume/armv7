@@ -397,6 +397,70 @@ struct Cpu {
     return nxt();
   }
 
+  inline u32 sbcImm() {
+    if (cnd()) {
+      u8 d = (cur >> 12);
+      u8 _n = (cur >> 16);
+      bool setflags = (cur & (1 << 20)) > 0;
+      Arith::Adc res = Arith::adc(r(_n), ~expandImm((u16)cur), apsr.b.c);
+      if (d == 15) {
+        return aluWritePc(res.r);
+      }
+      r(d, res.r);
+      if (setflags) {
+        n(res.n());
+        z(res.z());
+        c(res.c);
+        v(res.f);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 sbcReg() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = (cur >> 12) & 0xf;
+      u8 _n = cur >> 16;
+      bool setflags = (cur & (1 << 20)) > 0;
+      Arith::Is s = Arith::decodeImmShift((cur >> 5), (cur >> 7));
+      Arith::Res shifted = Arith::shiftC(r(m), s.t, s.n, c());
+      Arith::Adc adc = Arith::adc(r(_n), ~shifted.v.u, c());
+      if (d == 15) {
+        return aluWritePc(adc.r);
+      }
+      r(d, adc.r);
+      if (setflags) {
+        n(adc.n());
+        z(adc.z());
+        c(adc.c);
+        v(adc.f);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 sbcShiftedReg() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 s = cur >> 8;
+      u8 _n = cur >> 16;
+      bool setflags = (cur & (1 << 20)) > 0;
+      u32 shifted =
+          Arith::shiftC(r(m), decodeRegShift(cur >> 5), (u8)r(s), c()).u();
+      Arith::Adc a = Arith::adc(r(_n), ~shifted, c());
+      r(d, a.r);
+      if (setflags) {
+        n(a.n());
+        z(a.z());
+        c(a.c);
+        v(a.f);
+      }
+    }
+    return nxt();
+  }
+
   inline u32 addImm() {
     if (cnd()) {
       u8 d = (cur >> 12) & 0xf;
@@ -2238,6 +2302,18 @@ struct Cpu {
     return nxt();
   }
 
+  inline u32 uqadd16() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      u16 sum1 = Arith::u16satAdd(u16(r(n)), u16(r(m))).u();
+      u16 sum2 = Arith::u16satAdd(u16(r(n) >> 16), u16(r(m) >> 16)).u();
+      r(d, (sum1) | (u32(sum2) << 16));
+    }
+    return nxt();
+  }
+
   inline u32 ssub16() {
     if (cnd()) {
       u8 m = cur;
@@ -2266,6 +2342,18 @@ struct Cpu {
       g |= sum1 >= 0 ? 0b11 : 0;
       g |= sum2 >= 0 ? 0b1100 : 0;
       ge(g);
+    }
+    return nxt();
+  }
+
+  inline u32 uqsub16() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      u16 sum1 = Arith::u16satSub(u16(r(n)), u16(r(m))).u();
+      u16 sum2 = Arith::u16satSub(u16(r(n) >> 16), u16(r(m) >> 16)).u();
+      r(d, u32(sum1) | (u32(sum2) << 16));
     }
     return nxt();
   }
@@ -2322,6 +2410,53 @@ struct Cpu {
     return nxt();
   }
 
+  inline u32 uqadd8() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      u8 sum1 = Arith::u8satAdd(u8(r(n)), u8(r(m))).u();
+      u8 sum2 = Arith::u8satAdd(u8(r(n) >> 8), u8(r(m) >> 8)).u();
+      u8 sum3 = Arith::u8satAdd(u8(r(n) >> 16), u8(r(m) >> 16)).u();
+      u8 sum4 = Arith::u8satAdd(u8(r(n) >> 24), u8(r(m) >> 24)).u();
+      u32 res = (uns32(sum1) & 0xff) | ((uns32(sum2) & 0xff) << 8) |
+                ((uns32(sum3) & 0xff) << 16) | ((uns32(sum4) & 0xff) << 24);
+      r(d, res);
+    }
+    return nxt();
+  }
+
+  inline u32 usad8() {
+    if (cnd()) {
+      u8 m = cur >> 8;
+      u8 d = cur >> 16;
+      u8 n = cur;
+      i32 sum1 = abs32(i32(u8(r(n))) - i32(u8(r(m))));
+      i32 sum2 = abs32(i32(u8(r(n) >> 8)) - i32(u8(r(m) >> 8)));
+      i32 sum3 = abs32(i32(u8(r(n) >> 16)) - i32(u8(r(m) >> 16)));
+      i32 sum4 = abs32(i32(u8(r(n) >> 24)) - i32(u8(r(m) >> 24)));
+      u32 res = sum1 + sum2 + sum3 + sum4;
+      r(d, res);
+    }
+    return nxt();
+  }
+
+  inline u32 usada8() {
+    if (cnd()) {
+      u8 m = cur >> 8;
+      u8 d = cur >> 16;
+      u8 n = cur;
+      u8 a = cur >> 12;
+      i32 sum1 = abs32(i32(u8(r(n))) - i32(u8(r(m))));
+      i32 sum2 = abs32(i32(u8(r(n) >> 8)) - i32(u8(r(m) >> 8)));
+      i32 sum3 = abs32(i32(u8(r(n) >> 16)) - i32(u8(r(m) >> 16)));
+      i32 sum4 = abs32(i32(u8(r(n) >> 24)) - i32(u8(r(m) >> 24)));
+      u32 res = sum1 + sum2 + sum3 + sum4;
+      r(d, res + r(a));
+    }
+    return nxt();
+  }
+
   inline u32 ssub8() {
     if (cnd()) {
       u8 m = cur;
@@ -2374,6 +2509,22 @@ struct Cpu {
     return nxt();
   }
 
+  inline u32 uqsub8() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      u8 sum1 = Arith::u8satSub(u8(r(n)), u8(r(m))).u();
+      u8 sum2 = Arith::u8satSub(u8(r(n) >> 8), u8(r(m) >> 8)).u();
+      u8 sum3 = Arith::u8satSub(u8(r(n) >> 16), u8(r(m) >> 16)).u();
+      u8 sum4 = Arith::u8satSub(u8(r(n) >> 24), u8(r(m) >> 24)).u();
+      u32 res =
+          u32(sum1) | (u32(sum2) << 8) | (u32(sum3) << 16) | (u32(sum4) << 24);
+      r(d, res);
+    }
+    return nxt();
+  }
+
   inline u32 sasx() {
     if (cnd()) {
       u8 m = cur;
@@ -2408,6 +2559,19 @@ struct Cpu {
       if (sum >= 0x10000)
         g |= 0b1100;
       ge(g);
+    }
+    return nxt();
+  }
+
+  inline u32 uqasx() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      u16 dif = Arith::u16satSub(u16(r(n)), u16(r(m) >> 16)).u();
+      u16 sum = Arith::u16satAdd(u16(r(n) >> 16), u16(r(m))).u();
+      u32 res = (u32(dif)) | (u32(sum) << 16);
+      r(d, res);
     }
     return nxt();
   }
@@ -2612,6 +2776,19 @@ struct Cpu {
       if (diff >= 0)
         g |= 0b1100;
       ge(g);
+    }
+    return nxt();
+  }
+
+  inline u32 uqsax() {
+    if (cnd()) {
+      u8 m = cur;
+      u8 d = cur >> 12;
+      u8 n = cur >> 16;
+      u16 sum = Arith::u16satAdd(u16(r(n)), u16(r(m) >> 16)).u();
+      u16 diff = Arith::u16satSub(u16(r(n) >> 16), u16(r(m))).u();
+      u32 res = u32(sum) | (u32(diff) << 16);
+      r(d, res);
     }
     return nxt();
   }

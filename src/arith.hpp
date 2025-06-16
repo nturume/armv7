@@ -146,7 +146,7 @@ static inline Res s32satAdd(u32 a, u32 b) {
     }
     saturated = true;
   }
-  return {.v = {.u = res}, .c = saturated };
+  return {.v = {.u = res}, .c = saturated};
 }
 
 static inline Res s32satSub(u32 a, u32 b) {
@@ -160,9 +160,8 @@ static inline Res s32satSub(u32 a, u32 b) {
     }
     saturated = true;
   }
-  return {.v = {.u = res}, .c = saturated };
+  return {.v = {.u = res}, .c = saturated};
 }
-
 
 static inline Res s16satAdd(u16 a, u16 b) {
   u32 res = a + b;
@@ -175,7 +174,7 @@ static inline Res s16satAdd(u16 a, u16 b) {
     }
     saturated = true;
   }
-  return {.v = {.u = res}, .c = saturated };
+  return {.v = {.u = res}, .c = saturated};
 }
 
 static inline Res s16satSub(u16 a, u16 b) {
@@ -189,7 +188,7 @@ static inline Res s16satSub(u16 a, u16 b) {
     }
     saturated = true;
   }
-  return {.v = {.u = res}, .c = saturated };
+  return {.v = {.u = res}, .c = saturated};
 }
 
 static inline Res s8satAdd(u8 a, u8 b) {
@@ -203,7 +202,7 @@ static inline Res s8satAdd(u8 a, u8 b) {
     }
     saturated = true;
   }
-  return {.v = {.u = res}, .c = saturated };
+  return {.v = {.u = res}, .c = saturated};
 }
 
 static inline Res s8satSub(u8 a, u8 b) {
@@ -217,7 +216,49 @@ static inline Res s8satSub(u8 a, u8 b) {
     }
     saturated = true;
   }
-  return {.v = {.u = res}, .c = saturated };
+  return {.v = {.u = res}, .c = saturated};
+}
+
+static inline Res u16satAdd(u16 a, u16 b) {
+  u16 res = a + b;
+  bool saturated = false;
+  if (res < a) {
+    saturated = true;
+    res = 0xffff;
+  }
+  return Res{.v = {.u = res}, .c = saturated };
+}
+
+static inline Res u16satSub(u16 a, u16 b) {
+  u16 res = 0;
+  bool saturated = false;
+  if (a>b) {
+    res = a-b;
+  } else {
+    saturated = true;
+  }
+  return Res{.v = {.u = res}, .c = saturated };
+}
+
+static inline Res u8satSub(u8 a, u8 b) {
+  u8 res = 0;
+  bool saturated = false;
+  if (a>b) {
+    res = a-b;
+  } else {
+    saturated = true;
+  }
+  return Res{.v = {.u = res}, .c = saturated };
+}
+
+static inline Res u8satAdd(u8 a, u8 b) {
+  u8 res = a + b;
+  bool saturated = false;
+  if (res < a) {
+    saturated = true;
+    res = 0xff;
+  }
+  return Res{.v = {.u = res}, .c = saturated };
 }
 
 /// type must be pre masked
