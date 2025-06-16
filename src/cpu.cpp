@@ -11,7 +11,9 @@
 #include "test.hpp"
 
 u32 Cpu::exec(u32 word) {
+  if(word==0) return 0;// TODO remove
   cur = word;
+  printf("%x ", word);
   Instr instr = Decoder::decodeA(word);
   switch (instr) {
   case Instr::adcImm:
@@ -50,7 +52,7 @@ u32 Cpu::exec(u32 word) {
     return cmpReg();
   case Instr::cmpShiftedReg:
     return cmpShiftedReg();
-  case Instr::adr:
+  case Instr::adr://not
     return adr();
   case Instr::andImm:
     return andImm();
@@ -110,13 +112,13 @@ u32 Cpu::exec(u32 word) {
     return rscReg();
   case Instr::rscShiftedReg:
     return rscShiftedReg();
-  case Instr::movImm:
+  case Instr::movImm://not
     return movImm();
   case Instr::movImm16:
     return movImm16();
   case Instr::movReg:
     return movReg();
-  case Instr::movt:
+  case Instr::movt://not
     return movt();
   case Instr::bicImm:
     return bicImm();
@@ -140,7 +142,7 @@ u32 Cpu::exec(u32 word) {
     return msrImmApp();
   case Instr::msrApp:
     return msrApp();
-  case Instr::mvnImm:
+  case Instr::mvnImm://not
     return mvnImm();
   case Instr::mvnReg:
     return mvnReg();
@@ -187,7 +189,7 @@ u32 Cpu::exec(u32 word) {
   case Instr::ubfx:
     return ubfx();
   case Instr::udiv:
-    return udiv();
+    return udiv();//=======not
   case Instr::umaal:
     return umaal();
   case Instr::umlal:

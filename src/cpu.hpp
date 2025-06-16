@@ -281,13 +281,15 @@ struct Cpu {
     if (cnd()) {
       u8 d = (cur >> 12) & 0xf;
       bool setflags = (cur & (1 << 20)) > 0;
-      u32 res = ~expandImm(u16(cur));
+      auto imm = Arith::expandImmC(u16(cur));
+      u32 res = ~imm.u();
       if (d == 15)
         return aluWritePc(res);
       r(d, res);
       if (setflags) {
         n((res & NEG) > 0);
         z(res == 0);
+        c(imm.c);
       }
     }
     return nxt();
@@ -1322,6 +1324,7 @@ struct Cpu {
       u32 res = r(m);
       if (d == 15)
         return aluWritePc(res);
+      r(d,res);
       if (setflags) {
         n((res & NEG) > 0);
         z(res == 0);
@@ -1361,7 +1364,14 @@ struct Cpu {
       u8 lsbit = (cur >> 7) & 0b11111;
       u32 a = u64(0xffffffff) >> (32 - (msbit - lsbit));
       u32 res = u64(r(_n) & a) << lsbit;
-      r(d, res | r(d));
+
+
+      u32 ma = u64(0xffffffff) << msbit;
+      u32 mb = u64(0xffffffff) >> (32 - lsbit);
+
+      u32 cl = u32(ma | mb) & r(d);
+      
+      r(d, res | cl);
     }
     return nxt();
   }
@@ -1689,7 +1699,7 @@ struct Cpu {
       u32 b = u64(0xffffffff) >> (32 - lsbit);
 
       u32 x = ~u32(a | b) & r(n);
-      x = s32(x) >> lsbit;
+      x = x >> lsbit;
       r(d, x);
     }
     return nxt();

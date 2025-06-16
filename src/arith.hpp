@@ -28,29 +28,25 @@ struct Res {
 
 static inline Res lsl32(u32 v, u8 n) {
   Res res{.v = {.u = v}, .c = false};
-  if (n >= 32) {
+  if (n > 32) {
     res.v.u = 0;
     return res;
   }
-  asm volatile("movb %[a], %%cl\n"
-               "shll %%cl, %[b]\n"
-               "setc %[c]\n"
-               : [b] "+r"(res.v.u), [c] "=r"(res.c)
-               : [a] "r"(n));
+  u64 w = u64(v)<<n;
+  res.v.u = u32(w);
+  res.c = (w&(1ul<<32))>0;
   return res;
 }
 
 static inline Res lsr32(u32 v, u8 n) {
   Res res = {.v = {.u = v}, .c = false};
-  if (n >= 32) {
+  if (n > 32) {
     res.v.u = 0;
     return res;
   }
-  asm volatile("movb %[a], %%cl\n"
-               "shrl %%cl, %[b]\n"
-               "setc %[c]\n"
-               : [b] "+r"(res.v.u), [c] "=r"(res.c)
-               : [a] "r"(n));
+  u64 w = (u64(v)<<1)>>n;
+  res.v.u = u32(w>>1);
+  res.c = (w&1);
   return res;
 }
 
@@ -78,15 +74,13 @@ static inline Adc adc(u32 a, u32 b, bool carry) {
 
 static inline Res asr32(u32 v, u8 n) {
   Res res = {.v = {.u = v}, .c = false};
-  if (n >= 32) {
+  if (n > 32) {
     res.v.u = 0;
     return res;
   }
-  asm volatile("movb %[a], %%cl\n"
-               "sarl %%cl, %[b]\n"
-               "setc %[c]\n"
-               : [b] "+r"(res.v.u), [c] "=r"(res.c)
-               : [a] "r"(n));
+  i32 w = (res.i()>>(n-1));
+  res.c = (w&1);
+  res.v.i = w>>1;
   return res;
 }
 
@@ -94,9 +88,9 @@ static inline Res ror32(u32 v, u8 n) {
   Res res = {.v = {.u = v}, .c = false};
   asm volatile("movb %[a], %%cl\n"
                "rorl %%cl, %[b]\n"
-               "setc %[c]\n"
                : [b] "+r"(res.v.u), [c] "=r"(res.c)
                : [a] "r"(n));
+  res.c = (res.n());
   return res;
 }
 
