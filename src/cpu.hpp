@@ -233,16 +233,404 @@ struct Cpu {
     return false;
   }
 
-  inline bool haveLPAE() {
-    return false;
+  inline bool haveLPAE() { return false; }
+
+  inline void setExclusiveMonitor(u32 addr, u8 n) {
+    // TODO
+  }
+
+  inline bool exclusiveMonitorsPass(u32 addr, u8 n) {
+    // TODO
+    return true;
+  }
+
+  u32 alignmentFault() {
+    // TODO
+    assert(false);
   }
 
   bool unalignedSupport() { return true; }
 
   inline bool cbit(u8 n) { return (cur >> n) & 1; }
 
+  inline bool aligned64(u32 a) { return (a & 0b111) == 0; }
   inline bool aligned32(u32 a) { return (a & 0b11) == 0; }
   inline bool aligned16(u32 a) { return (a & 0b1) == 0; }
+
+  inline u32 ldmda() {
+    if (cnd()) {
+      u8 n = cur >> 16;
+      u16 registers = cur;
+      bool wback = cbit(21);
+      u8 bitcount = bitcount16(registers);
+      u32 address = r(n) - 4 * bitcount + 4;
+      u32 newpc;
+      bool setpc = false;
+      for (u8 i = 0; i < 15 and registers; i++) {
+        if (registers & 1) {
+          r(i, mem.a32a(address));
+          address += 4;
+        }
+        registers >>= 1;
+      }
+      if (registers & 1) {
+        newpc = loadWritePc(mem.a32a(address));
+        setpc = true;
+      }
+      if (wback) {
+        r(n, r(n) - 4 * bitcount);
+      }
+      if (setpc) {
+        return newpc;
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 stmda() {
+    if (cnd()) {
+      u8 n = cur >> 16;
+      u16 registers = cur;
+      bool wback = cbit(21);
+      u8 bitcount = bitcount16(registers);
+      u32 address = r(n) - 4 * bitcount + 4;
+      for (u8 i = 0; i < 15 and registers; i++) {
+        if (registers & 1) {
+          mem.a32a(address, r(i));
+          address += 4;
+        }
+        registers >>= 1;
+      }
+      if (registers & 1) {
+        mem.a32a(address, pcStoreValue());
+      }
+      if (wback) {
+        r(n, r(n) - 4 * bitcount);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 ldmdb() {
+    if (cnd()) {
+      u8 n = cur >> 16;
+      u16 registers = cur;
+      bool wback = cbit(21);
+      u8 bitcount = bitcount16(registers);
+      u32 address = r(n) - 4 * bitcount;
+      u32 newpc;
+      bool setpc = false;
+      for (u8 i = 0; i < 15 and registers; i++) {
+        if (registers & 1) {
+          r(i, mem.a32a(address));
+          address += 4;
+        }
+        registers >>= 1;
+      }
+      if (registers & 1) {
+        newpc = loadWritePc(mem.a32a(address));
+        setpc = true;
+      }
+      if (wback) {
+        r(n, r(n) - 4 * bitcount);
+      }
+      if (setpc) {
+        return newpc;
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 stmdb() {
+    if (cnd()) {
+      u8 n = cur >> 16;
+      u16 registers = cur;
+      bool wback = cbit(21);
+      u8 bitcount = bitcount16(registers);
+      u32 address = r(n) - 4 * bitcount;
+      for (u8 i = 0; i < 15 and registers; i++) {
+        if (registers & 1) {
+          r(i, mem.a32a(address));
+          address += 4;
+        }
+        registers >>= 1;
+      }
+      if (registers & 1) {
+        mem.a32a(address, pcStoreValue());
+      }
+      if (wback) {
+        r(n, r(n) - 4 * bitcount);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 ldmib() {
+    if (cnd()) {
+      u8 n = cur >> 16;
+      u16 registers = cur;
+      bool wback = cbit(21);
+      u8 bitcount = bitcount16(registers);
+      u32 address = r(n) + 4;
+      u32 newpc;
+      bool setpc = false;
+      for (u8 i = 0; i < 15 and registers; i++) {
+        if (registers & 1) {
+          r(i, mem.a32a(address));
+          address += 4;
+        }
+        registers >>= 1;
+      }
+      if (registers & 1) {
+        newpc = loadWritePc(mem.a32a(address));
+        setpc = true;
+      }
+      if (wback) {
+        r(n, r(n) + 4 * bitcount);
+      }
+      if (setpc) {
+        return newpc;
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 stmib() {
+    if (cnd()) {
+      u8 n = cur >> 16;
+      u16 registers = cur;
+      bool wback = cbit(21);
+      u8 bitcount = bitcount16(registers);
+      u32 address = r(n) + 4;
+      for (u8 i = 0; i < 15 and registers; i++) {
+        if (registers & 1) {
+          r(i, mem.a32a(address));
+          address += 4;
+        }
+        registers >>= 1;
+      }
+      if (registers & 1) {
+        mem.a32a(address, pcStoreValue());
+      }
+      if (wback) {
+        r(n, r(n) + 4 * bitcount);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 ldm() {
+    if (cnd()) {
+      u16 registers = cur;
+      u8 n = cur >> 16;
+      bool wback = cbit(21);
+      u32 address = r(n);
+      bool setpc = false;
+      u32 newpc;
+      for (u8 i = 0; i < 15 and registers; i++) {
+        if (registers & 1) {
+          r(i, mem.a32a(address));
+          address += 4;
+        }
+        registers >>= 1;
+      }
+      if (registers & 1) {
+        newpc = loadWritePc(mem.a32a(address));
+        address += 4;
+        setpc = true;
+      }
+      if (wback) {
+        r(n, address);
+      }
+      if (setpc) {
+        return newpc;
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 pop() {
+    if (cnd()) {
+      u16 registers = cur;
+      u32 address = sp();
+      bool setpc = false;
+      u32 newpc;
+      for (u8 i = 0; i < 15 and registers; i++) {
+        if (registers & 1) {
+          r(i, mem.a32a(address));
+          address += 4;
+        }
+        registers >>= 1;
+      }
+      if (registers & 1) {
+        newpc = loadWritePc(mem.a32a(address));
+        address += 4;
+        setpc = true;
+      }
+      sp(address);
+      if (setpc) {
+        return newpc;
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 stm() {
+    if (cnd()) {
+      u16 registers = cur;
+      u8 n = cur >> 16;
+      bool wback = cbit(21);
+      u32 address = r(n);
+      for (u8 i = 0; i < 15 and registers; i++) {
+        if (registers & 1) {
+          mem.a32a(address, r(i));
+          address += 4;
+        }
+        registers >>= 1;
+      }
+      if (registers & 1) {
+        mem.a32a(address, pcStoreValue());
+        address += 4;
+      }
+      if (wback) {
+        r(n, address);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 push() {
+    if (cnd()) {
+      u16 registers = cur;
+      u32 address = sp() - 4 * bitcount16(registers);
+      u32 sp_cpy = address;
+      for (u8 i = 0; i < 15 and registers; i++) {
+        if (registers & 1) {
+          mem.a32a(address, r(i));
+          address += 4;
+        }
+        registers >>= 1;
+      }
+      if (registers & 1) {
+        mem.a32a(address, pcStoreValue());
+      }
+      sp(sp_cpy);
+    }
+    return nxt();
+  }
+
+  inline u32 ldrex() {
+    if (cnd()) {
+      u8 t = cur >> 12;
+      u8 n = cur >> 16;
+      u32 address = r(n);
+      setExclusiveMonitor(address, 4);
+      r(t, mem.a32a(address));
+    }
+    return nxt();
+  }
+
+  inline u32 strexd() {
+    if (cnd()) {
+      u8 t = cur;
+      u8 n = cur >> 16;
+      u8 d = cur >> 12;
+      u32 address = r(n);
+      if (exclusiveMonitorsPass(address, 8)) {
+        mem.a32a(address, r(t));
+        mem.a32a(address + 4, r(t + 1));
+        r(d, 0);
+      } else {
+        r(d, 1);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 strex() {
+    if (cnd()) {
+      u8 t = cur;
+      u8 n = cur >> 16;
+      u8 d = cur >> 12;
+      u32 address = r(n);
+      if (exclusiveMonitorsPass(address, 4)) {
+        mem.a32a(address, r(t));
+        r(d, 0);
+      } else {
+        r(d, 1);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 strexb() {
+    if (cnd()) {
+      u8 t = cur;
+      u8 n = cur >> 16;
+      u8 d = cur >> 12;
+      u32 address = r(n);
+      if (exclusiveMonitorsPass(address, 1)) {
+        mem.a8a(address, r(t));
+        r(d, 0);
+      } else {
+        r(d, 1);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 strexh() {
+    if (cnd()) {
+      u8 t = cur;
+      u8 n = cur >> 16;
+      u8 d = cur >> 12;
+      u32 address = r(n);
+      if (exclusiveMonitorsPass(address, 2)) {
+        mem.a16a(address, r(t));
+        r(d, 0);
+      } else {
+        r(d, 1);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 ldrexh() {
+    if (cnd()) {
+      u8 t = cur >> 12;
+      u8 n = cur >> 16;
+      u32 address = r(n);
+      setExclusiveMonitor(address, 2);
+      r(t, mem.a16a(address));
+    }
+    return nxt();
+  }
+
+  inline u32 ldrexb() {
+    if (cnd()) {
+      u8 t = cur >> 12;
+      u8 n = cur >> 16;
+      u32 address = r(n);
+      setExclusiveMonitor(address, 1);
+      r(t, mem.a8a(address));
+    }
+    return nxt();
+  }
+
+  inline u32 ldrexd() {
+    if (cnd()) {
+      u8 t = cur >> 12;
+      u8 n = cur >> 16;
+      u32 address = r(n);
+      if (!aligned64(address)) {
+        return alignmentFault();
+      }
+      setExclusiveMonitor(address, 8);
+      r(t, mem.a32a(address));
+      r(t + 1, mem.a32a(address + 4));
+    }
+    return nxt();
+  }
 
   inline u32 strReg() {
     if (cnd()) {
@@ -355,6 +743,27 @@ struct Cpu {
     return nxt();
   }
 
+  inline u32 strhReg() {
+    if (cnd()) {
+      u8 t = (cur >> 12) & 0xf;
+      u8 n = cur >> 16;
+      u8 m = cur;
+      bool index = cbit(24);
+      bool add = cbit(23);
+      bool wback = !index or cbit(21);
+      auto offset = r(m);
+      u32 offset_addr = add ? r(n) + offset : r(n) - offset;
+      u32 address = index ? offset_addr : r(n);
+      if (unalignedSupport() or aligned16(address)) {
+        mem.a16u(address, r(t));
+      }
+      if (wback) {
+        r(n, offset_addr);
+      }
+    }
+    return nxt();
+  }
+
   inline u32 ldrshReg() {
     if (cnd()) {
       u8 t = (cur >> 12) & 0xf;
@@ -427,7 +836,26 @@ struct Cpu {
       u32 offset_addr = add ? r(n) + r(m) : r(n) - r(m);
       u32 address = index ? offset_addr : r(n);
       r(t, mem.a32a(address));
-      r(t+1, mem.a32a(address+4));
+      r(t + 1, mem.a32a(address + 4));
+      if (wback) {
+        r(n, offset_addr);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 strdReg() {
+    if (cnd()) {
+      u8 t = (cur >> 12) & 0xf;
+      u8 n = cur >> 16;
+      u8 m = cur;
+      bool index = cbit(24);
+      bool add = cbit(23);
+      bool wback = !index or cbit(21);
+      u32 offset_addr = add ? r(n) + r(m) : r(n) - r(m);
+      u32 address = index ? offset_addr : r(n);
+      mem.a32a(address, r(t));
+      mem.a32a(address + 4, r(t + 1));
       if (wback) {
         r(n, offset_addr);
       }
@@ -485,15 +913,35 @@ struct Cpu {
       bool index = cbit(24);
       bool add = cbit(23);
       bool wback = !index or cbit(21);
-      u32 imm32 = ((cur>>4)&0xf0)|(cur&0xf);
+      u32 imm32 = ((cur >> 4) & 0xf0) | (cur & 0xf);
       u32 offset_addr = add ? r(n) + imm32 : r(n) - imm32;
       u32 address = index ? offset_addr : r(n);
       u16 data = mem.a16u(address);
       if (wback) {
         r(n, offset_addr);
       }
-      if(unalignedSupport() or aligned16(address)) {
+      if (unalignedSupport() or aligned16(address)) {
         r(t, data);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 strhImm() {
+    if (cnd()) {
+      u8 t = cur >> 12;
+      u8 n = cur >> 16;
+      bool index = cbit(24);
+      bool add = cbit(23);
+      bool wback = !index or cbit(21);
+      u32 imm32 = ((cur >> 4) & 0xf0) | (cur & 0xf);
+      u32 offset_addr = add ? r(n) + imm32 : r(n) - imm32;
+      u32 address = index ? offset_addr : r(n);
+      if (unalignedSupport() or aligned16(address)) {
+        mem.a16u(address, r(t));
+      }
+      if (wback) {
+        r(n, offset_addr);
       }
     }
     return nxt();
@@ -506,11 +954,30 @@ struct Cpu {
       bool index = cbit(24);
       bool add = cbit(23);
       bool wback = !index or cbit(21);
-      u32 imm32 = ((cur>>4)&0xf0)|(cur&0xf);
+      u32 imm32 = ((cur >> 4) & 0xf0) | (cur & 0xf);
       u32 offset_addr = add ? r(n) + imm32 : r(n) - imm32;
       u32 address = index ? offset_addr : r(n);
       r(t, mem.a32a(address));
-      r(t+1, mem.a32a(address+4));
+      r(t + 1, mem.a32a(address + 4));
+      if (wback) {
+        r(n, offset_addr);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 strdImm() {
+    if (cnd()) {
+      u8 t = cur >> 12;
+      u8 n = cur >> 16;
+      bool index = cbit(24);
+      bool add = cbit(23);
+      bool wback = !index or cbit(21);
+      u32 imm32 = ((cur >> 4) & 0xf0) | (cur & 0xf);
+      u32 offset_addr = add ? r(n) + imm32 : r(n) - imm32;
+      u32 address = index ? offset_addr : r(n);
+      mem.a32a(address, r(t));
+      mem.a32a(address + 4, r(t + 1));
       if (wback) {
         r(n, offset_addr);
       }
@@ -525,14 +992,14 @@ struct Cpu {
       bool index = cbit(24);
       bool add = cbit(23);
       bool wback = !index or cbit(21);
-      u32 imm32 = ((cur>>4)&0xf0)|(cur&0xf);
+      u32 imm32 = ((cur >> 4) & 0xf0) | (cur & 0xf);
       u32 offset_addr = add ? r(n) + imm32 : r(n) - imm32;
       u32 address = index ? offset_addr : r(n);
       i32 data = s16(mem.a16u(address));
       if (wback) {
         r(n, offset_addr);
       }
-      if(unalignedSupport() or aligned16(address)) {
+      if (unalignedSupport() or aligned16(address)) {
         r(t, uns32(data));
       }
     }
@@ -546,7 +1013,7 @@ struct Cpu {
       bool index = cbit(24);
       bool add = cbit(23);
       bool wback = !index or cbit(21);
-      u32 imm32 = ((cur>>4)&0xf0)|(cur&0xf);
+      u32 imm32 = ((cur >> 4) & 0xf0) | (cur & 0xf);
       u32 offset_addr = add ? r(n) + imm32 : r(n) - imm32;
       u32 address = index ? offset_addr : r(n);
       i32 data = s8(mem.a8u(address));
@@ -612,10 +1079,10 @@ struct Cpu {
       u8 t = (cur >> 12) & 0xf;
       bool add = cbit(23);
       u32 base = align4(pc());
-      u32 imm32 = ((cur>>4)&0xf0)|(cur&0xf);
+      u32 imm32 = ((cur >> 4) & 0xf0) | (cur & 0xf);
       u32 address = add ? base + imm32 : base - imm32;
       u16 data = mem.a16u(address);
-      if(unalignedSupport() or aligned16(address)) {
+      if (unalignedSupport() or aligned16(address)) {
         r(t, data);
       }
     }
@@ -627,10 +1094,10 @@ struct Cpu {
       u8 t = (cur >> 12) & 0xf;
       bool add = cbit(23);
       u32 base = align4(pc());
-      u32 imm32 = ((cur>>4)&0xf0)|(cur&0xf);
+      u32 imm32 = ((cur >> 4) & 0xf0) | (cur & 0xf);
       u32 address = add ? base + imm32 : base - imm32;
       r(t, mem.a32a(address));
-      r(t+1, mem.a32a(address+4));
+      r(t + 1, mem.a32a(address + 4));
     }
     return nxt();
   }
@@ -640,10 +1107,10 @@ struct Cpu {
       u8 t = (cur >> 12) & 0xf;
       bool add = cbit(23);
       u32 base = align4(pc());
-      u32 imm32 = ((cur>>4)&0xf0)|(cur&0xf);
+      u32 imm32 = ((cur >> 4) & 0xf0) | (cur & 0xf);
       u32 address = add ? base + imm32 : base - imm32;
       i32 data = s16(mem.a16u(address));
-      if(unalignedSupport() or aligned16(address)) {
+      if (unalignedSupport() or aligned16(address)) {
         r(t, uns32(data));
       }
     }
@@ -655,7 +1122,7 @@ struct Cpu {
       u8 t = (cur >> 12) & 0xf;
       bool add = cbit(23);
       u32 base = align4(pc());
-      u32 imm32 = ((cur>>4)&0xf0)|(cur&0xf);
+      u32 imm32 = ((cur >> 4) & 0xf0) | (cur & 0xf);
       u32 address = add ? base + imm32 : base - imm32;
       i32 data = s8(mem.a8u(address));
       r(t, uns32(data));

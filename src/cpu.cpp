@@ -3,16 +3,15 @@
 #include "bin.hpp"
 #include "decoder.hpp"
 #include "stuff.hpp"
-#include <atomic>
+#include "test.hpp"
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
-#include "test.hpp"
 
 u32 Cpu::exec(u32 word) {
-  if(word==0) return 0;// TODO remove
   cur = word;
   printf("%x ", word);
   Instr instr = Decoder::decodeA(word);
@@ -53,7 +52,7 @@ u32 Cpu::exec(u32 word) {
     return cmpReg();
   case Instr::cmpShiftedReg:
     return cmpShiftedReg();
-  case Instr::adr://not
+  case Instr::adr: // not
     return adr();
   case Instr::andImm:
     return andImm();
@@ -113,13 +112,13 @@ u32 Cpu::exec(u32 word) {
     return rscReg();
   case Instr::rscShiftedReg:
     return rscShiftedReg();
-  case Instr::movImm://not
+  case Instr::movImm: // not
     return movImm();
   case Instr::movImm16:
     return movImm16();
   case Instr::movReg:
     return movReg();
-  case Instr::movt://not
+  case Instr::movt: // not
     return movt();
   case Instr::bicImm:
     return bicImm();
@@ -143,7 +142,7 @@ u32 Cpu::exec(u32 word) {
     return msrImmApp();
   case Instr::msrApp:
     return msrApp();
-  case Instr::mvnImm://not
+  case Instr::mvnImm: // not
     return mvnImm();
   case Instr::mvnReg:
     return mvnReg();
@@ -190,7 +189,7 @@ u32 Cpu::exec(u32 word) {
   case Instr::ubfx:
     return ubfx();
   case Instr::udiv:
-    return udiv();//=======not
+    return udiv(); //=======not
   case Instr::umaal:
     return umaal();
   case Instr::umlal:
@@ -374,10 +373,54 @@ u32 Cpu::exec(u32 word) {
     return ldrdLit();
   case Instr::ldrdReg:
     return ldrdReg();
-    // default:
-    //  printf("unhandled instruction: ");
-    //  Decoder::printInstr(instr);
-    //  exit(1);
+  case Instr::ldrex:
+    return ldrex();
+  case Instr::ldrexb:
+    return ldrexb();
+  case Instr::ldrexh:
+    return ldrexh();
+  case Instr::ldrexd:
+    return ldrexd();
+  case Instr::ldm:
+    return ldm();
+  case Instr::ldmda:
+    return ldmda();
+  case Instr::ldmdb:
+    return ldmdb();
+  case Instr::ldmib:
+    return ldmib();
+  case Instr::strhImm:
+    return strhImm();
+  case Instr::strhReg:
+    return strhReg();
+  case Instr::strdImm:
+    return strdImm();
+  case Instr::strd:
+    return strdReg();
+  case Instr::strex:
+    return strex();
+  case Instr::strexb:
+    return strexb();
+  case Instr::strexh:
+    return strexh();
+  case Instr::strexd:
+    return strexd();
+  case Instr::stm:
+    return stm();
+  case Instr::stmda:
+    return stmda();
+  case Instr::stmdb:
+    return stmdb();
+  case Instr::stmib:
+    return stmib();
+  case Instr::pop:
+    return pop();
+  case Instr::push:
+    return push();
+  default:
+    printf("unhandled instruction: ");
+    Decoder::printInstr(instr);
+    abort();
   }
 }
 
@@ -388,7 +431,10 @@ void Cpu::test() {
   c.r(0, 0xffffffff);
   c.x("str r0, [r1, r4]");
   c.x("str r0, [r1, #4]");
-  c.x("ldrd r2, [r4, r4]");
-  //assert(c.mem.a32a(0)==0xffffffff);
-  c.expectreg(3,0xffff);
+  c.r(0, 0xddddddd8);
+  c.x("str r0, [r1, #8]");
+  c.r(13, 12);
+  c.x("push {r0, r1, r2}");
+  c.expectreg(13, 0x0);
+  ;
 }

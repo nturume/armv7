@@ -123,3 +123,12 @@ inline u32 sx16(u16 v) {
 static inline i32 abs32(i32 v) {
   return v>=0?v:-v;
 }
+
+inline u8 bitcount16(u16 v) {
+  u8 bits = 0;
+  while(v) {
+    bits += (v&1);
+    v >>= 1;
+  }
+  return bits;
+}
