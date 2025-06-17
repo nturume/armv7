@@ -1836,9 +1836,10 @@ struct Cpu {
       u8 d = cur >> 12;
       u8 n = cur >> 16;
       auto rotated = Arith::ror32(r(m), rotation);
-      u32 res = (u16(r(n)) + u16(u8(rotated.u()))) |
-                (u32((u16(r(n) >> 16)) + u16(u8(rotated.u() >> 16))) << 16);
-      r(d, res);
+      printf("rotation = %d, %x \n", rotation, (r(n)%0xffff) + (rotated.u()&0xff));
+      u32 a = (r(n)&0xffff) + (rotated.u()&0xff);
+      u32 b = (r(n)>>16) + ((rotated.u()>>16)&0xff);
+      r(d, (a&0xffff)|(b<<16));
     }
     return nxt();
   }
