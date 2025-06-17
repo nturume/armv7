@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include "test.hpp"
 
@@ -328,6 +329,51 @@ u32 Cpu::exec(u32 word) {
     return uqsub16();
   case Instr::uqsub8:
     return uqsub8();
+  //====== mem ========
+  case Instr::strReg:
+    return strReg();
+  case Instr::ldrReg:
+    return ldrReg();
+  case Instr::strImm:
+    return strImm();
+  case Instr::ldrImm:
+    return ldrImm();
+  case Instr::ldrLit:
+    return ldrLit();
+  case Instr::ldrbImm:
+    return ldrbImm();
+  case Instr::strbImm:
+    return strbImm();
+  case Instr::strbReg:
+    return strbReg();
+  case Instr::ldrbReg:
+    return ldrbReg();
+  case Instr::ldrbLit:
+    return ldrbLit();
+  case Instr::ldrhImm:
+    return ldrhImm();
+  case Instr::ldrhLit:
+    return ldrhLit();
+  case Instr::ldrhReg:
+    return ldrhReg();
+  case Instr::ldrshImm:
+    return ldrshImm();
+  case Instr::ldrshLit:
+    return ldrshLit();
+  case Instr::ldrsh:
+    return ldrshReg();
+  case Instr::ldrsbImm:
+    return ldrsbImm();
+  case Instr::ldrsbLit:
+    return ldrsbLit();
+  case Instr::ldrsbReg:
+    return ldrsbReg();
+  case Instr::ldrdImm:
+    return ldrdImm();
+  case Instr::ldrdLit:
+    return ldrdLit();
+  case Instr::ldrdReg:
+    return ldrdReg();
     // default:
     //  printf("unhandled instruction: ");
     //  Decoder::printInstr(instr);
@@ -338,5 +384,11 @@ u32 Cpu::exec(u32 word) {
 u32 Cpu::x(const char *prog) { return exec(assemble(prog)); }
 
 void Cpu::test() {
-  tester();
+  Cpu c;
+  c.r(0, 0xffffffff);
+  c.x("str r0, [r1, r4]");
+  c.x("str r0, [r1, #4]");
+  c.x("ldrd r2, [r4, r4]");
+  //assert(c.mem.a32a(0)==0xffffffff);
+  c.expectreg(3,0xffff);
 }

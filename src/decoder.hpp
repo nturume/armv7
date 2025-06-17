@@ -783,7 +783,7 @@ inline int printInstr(Instr instr) {
   case Instr::strt2:
     return printf("Instr::strt2\n");
   case Instr::ldrImm:
-    return printf("Instr::ldrImm2\n");
+    return printf("Instr::ldrImm\n");
   case Instr::ldrLit:
     return printf("Instr::ldrLit\n");
   case Instr::ldrReg:
