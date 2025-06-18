@@ -1,84 +1,163 @@
 #pragma once
-#include "./stuff.hpp"
 #include "./elf.hpp"
+#include "./stuff.hpp"
+#include <cassert>
 #include <cstdio>
 #include <cstring>
-#include <cassert>
+#include <vector>
+
+#define DEV_BASE 0x40000000
+
+struct Region {
+  u32 start;
+  u32 end;
+
+  u32 (*r)(u32 addr, u8 width) = nullptr;
+  void (*w)(u32 addr, u32 value, u8 width) = nullptr;
+
+  bool has(u32 addr) { return addr >= start and addr < end; }
+
+  u32 read(u32 addr, u8 width) {
+    if (r != nullptr) {
+      return r(addr, width);
+    }    
+    assert("region read() is arsenal UCL" == nullptr);
+  }
+
+  void write(u32 addr, u32 value, u8 width) {
+    if (w != nullptr) {
+      return w(addr, value, width);
+    }
+    assert("region write() is arsenal UCL" == nullptr);
+  }
+};
 
 template <int size> struct Memory {
-  u8 buf[size+4];
-  
+  u8 buf[size + 4];
+
+  std::vector<Region> regions = {};
+
+  bool findRegion(u32 addr, Region *reg) {}
+
+  void writeRegion(u32 addr, u32 value, u8 width) {
+    for (u32 i = 0; i < regions.size(); i++) {
+      Region region = regions[i];
+      if (region.has(addr)) {
+        return region.write(addr, value, width);
+      }
+    }
+    printf("WARNING: write() region with address 0x%x not found\n", addr);
+  }
+
+  u32 readRegion(u32 addr, u8 width) {
+    for (u32 i = 0; i < regions.size(); i++) {
+      Region region = regions[i];
+      if (region.has(addr)) {
+        return region.read(addr, width);
+      }
+    }
+    printf("WARNING: read() region with address 0x%x not found\n", addr);
+  }
+
   u32 a32u(u64 pos) {
-    return  *reinterpret_cast<u32*>(&buf[pos%size]);
+    if (pos >= DEV_BASE)
+      return readRegion(pos, 4);
+    return *reinterpret_cast<u32 *>(&buf[pos]);
   }
 
   void a32u(u64 pos, u32 value) {
-    *reinterpret_cast<u32*>(&buf[pos%size]) = value;
+    if (pos >= DEV_BASE)
+      return writeRegion(pos, value, 4);
+    *reinterpret_cast<u32 *>(&buf[pos]) = value;
   }
 
   u16 a16u(u64 pos) {
-    return  *reinterpret_cast<u16*>(&buf[pos%size]);
+    if (pos >= DEV_BASE)
+      return readRegion(pos, 2);
+    return *reinterpret_cast<u16 *>(&buf[pos]);
   }
 
   void a16u(u64 pos, u16 value) {
-    *reinterpret_cast<u16*>(&buf[pos%size]) = value;
+    if (pos >= DEV_BASE)
+      return writeRegion(pos, value, 2);
+    *reinterpret_cast<u16 *>(&buf[pos]) = value;
   }
 
   u8 a8u(u64 pos) {
-    return  buf[pos%size];
+    if (pos >= DEV_BASE)
+      return readRegion(pos, 1);
+    return buf[pos];
   }
 
   void a8u(u64 pos, u8 value) {
-    buf[pos%size] = value;
+    if (pos >= DEV_BASE)
+      return writeRegion(pos, value, 1);
+    buf[pos] = value;
   }
 
   u32 a32a(u64 pos) {
     // TODO
-    return  *reinterpret_cast<u32*>(&buf[pos%size]);
+    if (pos >= DEV_BASE)
+      return readRegion(pos, 4);
+    return *reinterpret_cast<u32 *>(&buf[pos]);
   }
 
   void a32a(u64 pos, u32 value) {
     // TODO
-    *reinterpret_cast<u32*>(&buf[pos%size]) = value;
+    if (pos >= DEV_BASE)
+      return writeRegion(pos, value, 4);
+    *reinterpret_cast<u32 *>(&buf[pos]) = value;
   }
 
   u16 a16a(u64 pos) {
     // TODO
-    return  *reinterpret_cast<u16*>(&buf[pos%size]);
+    if (pos >= DEV_BASE)
+      return readRegion(pos, 2);
+    return *reinterpret_cast<u16 *>(&buf[pos]);
   }
 
   void a16a(u64 pos, u16 value) {
     // TODO
-    *reinterpret_cast<u16*>(&buf[pos%size]) = value;
+    if (pos >= DEV_BASE)
+      return writeRegion(pos, value, 2);
+    *reinterpret_cast<u16 *>(&buf[pos]) = value;
   }
 
   u8 a8a(u64 pos) {
     // TODO
-    return  buf[pos%size];
+    if (pos >= DEV_BASE)
+      return readRegion(pos, 1);
+    return buf[pos];
   }
 
   void a8a(u64 pos, u8 value) {
     // TODO
-    buf[pos%size] = value;
+    if (pos >= DEV_BASE)
+      return writeRegion(pos, value, 1);
+    buf[pos] = value;
   }
 
-  void loadElf(Elf::ProgramHeaderIterator it ) {
-    Elf::Ph ph = {}; 
-    while(it.next(&ph)) {
-      if(ph.p_type != PT_LOAD) continue;
+  void loadElf(Elf::ProgramHeaderIterator it) {
+    Elf::Ph ph = {};
+    while (it.next(&ph)) {
+      if (ph.p_type != PT_LOAD)
+        continue;
       FileReader fr(it.file);
       fr.seekTo((i64)ph.p_offset);
-      printf("  loading ph at: %u to %u (%u)bytes\n", ph.p_vaddr,ph.p_vaddr+ph.p_filesz, ph.p_filesz);
-      if(size < ph.p_vaddr+ph.p_filesz) {
-        printf("  attempt to load program out of memory. memsize: (%u) vaddr end: (%u)\n",size, ph.p_vaddr+ph.p_filesz);
+      printf("  loading ph at: %u to %u (%u)bytes\n", ph.p_vaddr,
+             ph.p_vaddr + ph.p_filesz, ph.p_filesz);
+      if (size < ph.p_vaddr + ph.p_filesz) {
+        printf("  attempt to load program out of memory. memsize: (%u) vaddr "
+               "end: (%u)\n",
+               size, ph.p_vaddr + ph.p_filesz);
         exit(1);
-      } 
-      u64 r = fr.read(buf+ph.p_vaddr,ph.p_filesz);
-      if(r != ph.p_filesz) {
+      }
+      u64 r = fr.read(buf + ph.p_vaddr, ph.p_filesz);
+      if (r != ph.p_filesz) {
         printf("Error loading program headers\n");
         exit(1);
       }
-    }     
+    }
   }
 
   // template <typename T> T readLE(u64 pos) {
@@ -112,8 +191,7 @@ template <int size> struct Memory {
   //   memcpy(buf + pos, &value, sizeof(T) < r ? sizeof(T) : r);
   // }
 
-
-   static  void test() {
+  static void test() {
     // Memory<64> m = {};
     // m.writeBE<u8>(0, 0xff);
     // assert(m.readBE<u8>(0) == 0xff);

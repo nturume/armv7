@@ -8,7 +8,7 @@
 #include <cstring>
 #include "arith.hpp"
 #include "cpu.hpp"
-
+#include "uart.hpp"
 
 #ifndef TESTING
 int  main() {
@@ -29,6 +29,8 @@ int  main() {
   Elf::ProgramHeaderIterator iter(elf.file, elf.header);
 
   c.mem.loadElf(iter);
+
+  c.mem.regions.push_back(UART::getRegion());
 
   c.pcReal(elf.header.e_entry);
 
