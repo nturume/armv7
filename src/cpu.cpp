@@ -13,7 +13,7 @@
 
 u32 Cpu::exec(u32 word) {
   cur = word;
-  printf("%x ", word);
+ // printf("%x ", word);
   Instr instr = Decoder::decodeA(word);
   switch (instr) {
   case Instr::adcImm:
@@ -422,6 +422,14 @@ u32 Cpu::exec(u32 word) {
     return b();
   case Instr::bl:
     return bl();
+  case Instr::bx:
+    return bx();
+  case Instr::wfi:
+    printf("==== WFI ====\n");
+    exit(0);
+  case Instr::wfe:
+    printf("==== WFE ====\n");
+    exit(0);
   default:
     printf("unhandled instruction: ");
     Decoder::printInstr(instr);

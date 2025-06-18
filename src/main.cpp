@@ -10,11 +10,9 @@
 #include "cpu.hpp"
 
 
-Memory<1024> m;
-
 #ifndef TESTING
 int  main() {
-  Cpu::test();
+  //Cpu::test();
   // Cpu c;
   // u32 instr =  assemble("adc r1, r0, #0x80000000");
   // c.exec(instr);
@@ -24,21 +22,24 @@ int  main() {
  
   
   // Decoder::test();
+
+  Cpu c;
     
-  //       Elf elf("./build/elf");
-  // Elf::ProgramHeaderIterator iter(elf.file, elf.header);
+  Elf elf("./build/c.elf");
+  Elf::ProgramHeaderIterator iter(elf.file, elf.header);
 
-  // m.loadElf(iter);
+  c.mem.loadElf(iter);
 
-  // u32 instr = m.readBE<u32>(elf.header.e_entry);
+  c.pcReal(elf.header.e_entry);
 
-  // printf("Instruction: %x\n", instr);
-  // Decoder::decodeA(instr);
-  // Elf::Ph ph = {};
-
-  // if(iter.next(&ph) == nullptr) {
-  //   return 0;
-  // }
+  while(true) {
+    //printf("pc: %u sp: %u, r0: %x\n", c.pcReal(), c.r(13), c.r(0));
+    u32 word = c.mem.a32u(c.pcReal());
+    //fflush(stdout);
+    u32 pc = c.exec(word);
+    c.pcReal(pc);
+    //fgetc(stdin);
+  }
 }
 #else
 

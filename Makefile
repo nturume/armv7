@@ -41,12 +41,17 @@ $(BUILD_DIR)/elf: $(ASM) $(SRC_DIRS)/l.ld
 	$(V_AT)arm-none-eabi-as $(SRC_DIRS)/prog.s -o $(BUILD_DIR)/a.out
 	$(V_AT)arm-none-eabi-ld $(BUILD_DIR)/a.out -o $(BUILD_DIR)/elf -T$(SRC_DIRS)/l.ld
 	$(V_AT)rm $(BUILD_DIR)/a.out
+	
+$(BUILD_DIR)/c.elf: $(SRC_DIRS)/prog.c $(SRC_DIRS)/l.ld
+	$(V_AT)arm-none-eabi-gcc -marm -mcpu=cortex-a7 -c $(SRC_DIRS)/prog.c -o $(BUILD_DIR)/a.out
+	$(V_AT)arm-none-eabi-ld $(BUILD_DIR)/a.out -o $(BUILD_DIR)/c.elf -T$(SRC_DIRS)/l.ld
+	$(V_AT)rm $(BUILD_DIR)/a.out
 
 clean:
 	$(V_AT)rm -rf build/* *.iso
 	$(V_AT)rm -rf doc/doxygen
 
-run: $(TARGET_EXEC) $(BUILD_DIR)/elf
+run: $(TARGET_EXEC) $(BUILD_DIR)/c.elf
 	$(V_AT)$(TARGET_EXEC)
 
 fmt:

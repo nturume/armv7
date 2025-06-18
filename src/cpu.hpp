@@ -27,7 +27,7 @@ struct Cpu {
 
   APSR apsr;
   u32 regs[16] = {0};
-  Memory<64> mem;
+  Memory<1024*1024> mem;
 
   u32 cur;
 
@@ -51,10 +51,10 @@ struct Cpu {
       result = apsr.b.c and !apsr.b.z;
       break;
     case 0b101:
-      result = apsr.b.n and apsr.b.v;
+      result = apsr.b.n == apsr.b.v;
       break;
     case 0b110:
-      result = apsr.b.n and !apsr.b.z;
+      result = (apsr.b.n == apsr.b.v) and !apsr.b.z;
       break;
     case 0b111:
       result = true;
@@ -86,7 +86,10 @@ struct Cpu {
 
   inline u32 pcStoreValue() { return regs[15] + 8; }
 
-  inline void branchTo(u32 ptr) { regs[15] = ptr; }
+  inline u32 branchTo(u32 ptr) { 
+    regs[15] = ptr;
+    return ptr; 
+  }
 
   inline void branchWritePc(u32 ptr) {
     //
@@ -104,23 +107,22 @@ struct Cpu {
   inline u32 pc() { return regs[15] + 8; }
 
   inline u32 pcReal() { return regs[15]; }
+  inline void pcReal(u32 v) { regs[15] = v; }
 
-  inline void bxWritePc(u32 ptr) {
+  inline u32 bxWritePc(u32 ptr) {
     if ((ptr & 0b11) == 0) {
       return branchTo(ptr);
     }
-
+    printf("%u %x\n",ptr, ptr);
     assert(true ? false : "bad address" == nullptr);
   }
 
   inline u32 aluWritePc(u32 ptr) {
-    bxWritePc(ptr);
-    return regs[15];
+    return bxWritePc(ptr);
   }
 
   inline u32 loadWritePc(u32 ptr) {
-    bxWritePc(ptr);
-    return regs[15];
+    return bxWritePc(ptr);
   }
 
   inline u32 expandImm(u16 imm12) { return Arith::expandImmC(imm12).v.u; }
@@ -215,7 +217,7 @@ struct Cpu {
   u32 exec(u32 word);
   u32 x(const char *prog);
 
-  inline u32 nxt() { return r(15) + 4; }
+  inline u32 nxt() { return pcReal() + 4; }
 
   static constexpr u32 bm(u8 n) { return u32(0xffffffff) >> (32 - n); }
 
@@ -260,9 +262,16 @@ struct Cpu {
   inline bool aligned32(u32 a) { return (a & 0b11) == 0; }
   inline bool aligned16(u32 a) { return (a & 0b1) == 0; }
 
+  inline u32 bx() {
+    if(cnd()) {
+      return bxWritePc(r(cur));
+    }
+    return nxt();
+  }
+
   inline u32 b() {
     if (cnd()) {
-      u32 imm32 = (cur & 0xfffff) << 2;
+      u32 imm32 = uns32(s32(cur << 8)>>6);
       branchWritePc(pc() + imm32);
       return pcReal();
     }
@@ -271,7 +280,7 @@ struct Cpu {
 
   inline u32 bl() {
     if (cnd()) {
-      u32 imm32 = (cur & 0xfffff) << 2;
+      u32 imm32 = uns32(s32(cur<< 8)>>6);
       r(14, pc() - 4);
       branchWritePc(pc() + imm32);
       return pcReal();
@@ -734,7 +743,7 @@ struct Cpu {
       }
       if (t == 15) {
         if (aligned32(address)) {
-          return loadWritePc(address);
+          return loadWritePc(data);
         }
       } else if (unalignedSupport() or aligned32(address)) {
         r(t, data);
@@ -901,7 +910,7 @@ struct Cpu {
       }
       if (t == 15) {
         if (aligned32(address)) {
-          return loadWritePc(address);
+          return loadWritePc(data);
         }
       } else if (unalignedSupport() or aligned32(address)) {
         r(t, data);
@@ -1075,7 +1084,7 @@ struct Cpu {
       u32 data = mem.a32u(address);
       if (t == 15) {
         if (aligned32(address)) {
-          return loadWritePc(address);
+          return loadWritePc(data);
         }
       } else if (unalignedSupport() or aligned32(address)) {
         r(t, data);

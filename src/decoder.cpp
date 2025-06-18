@@ -1204,7 +1204,6 @@ Instr decodeA(u32 instr) {
   default:
     res = conditional(gen);
   }
-  printInstr(res);
   return res;
 }
 
