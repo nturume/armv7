@@ -417,6 +417,11 @@ u32 Cpu::exec(u32 word) {
     return pop();
   case Instr::push:
     return push();
+  //=== branch ====
+  case Instr::b:
+    return b();
+  case Instr::bl:
+    return bl();
   default:
     printf("unhandled instruction: ");
     Decoder::printInstr(instr);

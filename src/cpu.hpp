@@ -88,7 +88,10 @@ struct Cpu {
 
   inline void branchTo(u32 ptr) { regs[15] = ptr; }
 
-  inline void branchWritePc(u32 ptr) { branchTo(ptr & (0xffffffff << 2)); }
+  inline void branchWritePc(u32 ptr) {
+    //
+    branchTo(ptr & (0xffffffff << 2));
+  }
 
   inline u32 sp() { return regs[13]; }
 
@@ -256,6 +259,25 @@ struct Cpu {
   inline bool aligned64(u32 a) { return (a & 0b111) == 0; }
   inline bool aligned32(u32 a) { return (a & 0b11) == 0; }
   inline bool aligned16(u32 a) { return (a & 0b1) == 0; }
+
+  inline u32 b() {
+    if (cnd()) {
+      u32 imm32 = (cur & 0xfffff) << 2;
+      branchWritePc(pc() + imm32);
+      return pcReal();
+    }
+    return nxt();
+  }
+
+  inline u32 bl() {
+    if (cnd()) {
+      u32 imm32 = (cur & 0xfffff) << 2;
+      r(14, pc() - 4);
+      branchWritePc(pc() + imm32);
+      return pcReal();
+    }
+    return nxt();
+  }
 
   inline u32 ldmda() {
     if (cnd()) {
