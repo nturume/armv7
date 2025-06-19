@@ -1,20 +1,29 @@
 char stack[1024];
 
-int array[10];
+#define UARTBASE 0x40000000
 
-#define ARSENAL_UCL 0
+unsigned int *DATAREG = (unsigned int *)(UARTBASE + 0x0);
+unsigned int *FLAGSREG = (unsigned int *)(UARTBASE + 0x18);
+unsigned int *CTLREG = (unsigned int *)(UARTBASE + 0x30);
 
 int main() {
-  long long *ptr = (long long *)0x40000000ul;
-  long long a = *ptr;
-  *ptr = 0;
+  // enable uart + tx
+  *CTLREG = (1u<<8) | 1u;
+
+  char *m = "Hello UART!\n";
+
+  while(*m) {
+    // wait if busy
+    while(((*FLAGSREG)>>3)&1);
+    *DATAREG = *m;
+    m += 1;
+  }
+  
   return 0;
 }
 
-__attribute__((naked))
-void _start () {
+__attribute__((naked)) void _start() {
   asm volatile("ldr sp, =stack+1024");
   asm volatile("bl main");
-  asm volatile("wfe");
   asm volatile("b .");
 }

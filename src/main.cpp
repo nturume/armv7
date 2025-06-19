@@ -12,16 +12,15 @@
 
 #ifndef TESTING
 int  main() {
-  //Cpu::test();
-  // Cpu c;
-  // u32 instr =  assemble("adc r1, r0, #0x80000000");
-  // c.exec(instr);
-  // c.printRegisters();
-  // return 0; 
 
- 
-  
-  // Decoder::test();
+  // UART::PL011 pl = {};
+  // pl.enableTxfifo();
+  // for(u8 i = 0; i < 40; i++) {
+  //  pl.writeDR(i+97); 
+  // }
+  // pl.tx();
+  // pl.printTxState();
+  // return 0;
 
   Cpu c;
     
