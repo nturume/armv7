@@ -186,12 +186,5 @@ u32 read(u32 addr, u8 width);
 
 void write(u32 addr, u32 value, u8 width);
 
-static Region getRegion() {
-  return {
-      .start = 0x40000000,
-      .end = 0x40000100,
-      .r = &read,
-      .w = &write,
-  };
-}
+Region getRegion();
 }; // namespace UART

@@ -12,17 +12,7 @@
 
 #ifndef TESTING
 int  main() {
-
-  // UART::PL011 pl = {};
-  // pl.enableTxfifo();
-  // for(u8 i = 0; i < 40; i++) {
-  //  pl.writeDR(i+97); 
-  // }
-  // pl.tx();
-  // pl.printTxState();
-  // return 0;
-
-  Cpu c;
+  Cpu c = {};
     
   Elf elf("./build/c.elf");
   Elf::ProgramHeaderIterator iter(elf.file, elf.header);
@@ -36,7 +26,6 @@ int  main() {
   while(true) {
     //printf("pc: %u sp: %u, r0: %x\n", c.pcReal(), c.r(13), c.r(0));
     u32 word = c.mem.a32u(c.pcReal());
-    //fflush(stdout);
     u32 pc = c.exec(word);
     c.pcReal(pc);
     //fgetc(stdin);

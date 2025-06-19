@@ -5,15 +5,23 @@
 #include "mem.hpp"
 #include "stuff.hpp"
 #include <cmath>
+#include <cstdio>
 #include <functional>
 #include <iosfwd>
 #include <string>
+#include <system_error>
 
 struct Cpu {
 
   union APSR {
     struct {
-      u32 _1 : 16;
+      u32 m : 5;
+      u32 t : 1;
+      u32 f : 1;
+      u32 i : 1;
+      u32 a : 1;
+      u32 e : 1;
+      u32 _1 : 6;
       u32 ge : 4;
       u32 _2 : 7;
       u32 q : 1;
@@ -22,12 +30,79 @@ struct Cpu {
       u32 z : 1;
       u32 n : 1;
     } b;
-    u32 back = 0;
+    u32 back = 0b10011; // supervisor mode
   };
 
-  APSR apsr;
-  u32 regs[16] = {0};
-  Memory<1024*1024> mem;
+  union SCTLR {
+    struct {
+      u32 m : 1;
+      u32 a : 1;
+      u32 c : 1;
+      u32 _1 : 2 = 0b11;
+      u32 cp15ben : 1;
+      u32 _9 : 1 = 1;
+      u32 b : 1;
+      u32 _2 : 2 = 0;
+      u32 sw : 1;
+      u32 z : 1;
+      u32 i : 1;
+      u32 v : 1;
+      u32 rr : 1;
+      u32 _3 : 1 = 0;
+      u32 _4 : 1 = 1;
+      u32 ha : 1;
+      u32 _5 : 1 = 1;
+      u32 wxn : 1;
+      u32 uwxn : 1;
+      u32 fi : 1;
+      u32 u : 1 = 1;
+      u32 _6 : 1 = 1;
+      u32 ve : 1;
+      u32 ee : 1;
+      u32 _7 : 1 = 0;
+      u32 nmfi : 1;
+      u32 tre : 1;
+      u32 afe : 1;
+      u32 te : 1;
+      u32 _8 : 1 = 0;
+    } b;
+    u32 back;
+  };
+
+  union SCR {
+    struct {
+      u32 ns : 1;
+      u32 irq : 1;
+      u32 fiq : 1;
+      u32 ea : 1;
+      u32 fw : 1;
+      u32 aw : 1;
+      u32 net : 1;
+      u32 scd : 1;
+      u32 hce : 1;
+      u32 sif : 1;
+    } b;
+    u32 back;
+  };
+
+  APSR apsr = {};
+  SCTLR sctrl = {};
+  SCR scr = {};
+  // regs
+  u32 user_regs[16] = {0};
+  u32 fiq_regs[8] = {0};
+  u32 supervisor_regs[2] = {0};
+  u32 abort_regs[2] = {0};
+  u32 undefined_regs[2] = {0};
+  u32 irq_regs[2] = {0};
+  // spsr
+  u32 spsr_svc;
+  u32 spsr_abt;
+  u32 spsr_und;
+  u32 spsr_irq;
+  u32 spsr_fiq;
+
+  Memory<1024 * 1024> mem;
 
   u32 cur;
 
@@ -66,29 +141,300 @@ struct Cpu {
     return result;
   }
 
+  u8 M() { return apsr.b.m; }
+
+  enum class Mode : u8 {
+    user = 0b10000,
+    fiq = 0b10001,
+    irq = 0b10010,
+    supervisor = 0b10011,
+    monitor = 0b10110,
+    abort = 0b10111,
+    hyp = 0b11010,
+    undefined = 0b11011,
+    system = 0b11111,
+    _
+  };
+
+  bool hasSecurityExt() { return false; }
+
+  bool isSecure() { return false; }
+
+  bool hasVirtExt() { return false; }
+
+  bool badMode(u8 mode) {
+    switch (Mode(mode)) {
+    case Mode::user:
+    case Mode::fiq:
+    case Mode::irq:
+    case Mode::supervisor:
+    case Mode::abort:
+    case Mode::undefined:
+    case Mode::system:
+      return false;
+    // case Mode::hyp:return !hasVirtExt();
+    // case Mode::monitor:return !hasSecurityExt();
+    default:
+      printf("bad mode\n");
+      assert(false);
+    }
+  }
+
+  inline bool curModeIsUsrSys() {
+    if (badMode(M())) {
+    }
+    return Mode(M()) == Mode::user or Mode(M()) == Mode::system ? true : false;
+  }
+
+  inline bool curModeIsHype() {
+    if (badMode(M())) {
+    }
+    return Mode(M()) == Mode::hyp ? true : false;
+  }
+
+  inline bool curModeIsntUser() {
+    if (badMode(M())) {
+    }
+    return Mode(M()) == Mode::user ? false : true;
+  }
+
+  void cpsr(u32 value) { apsr.back = value; }
+
+  u32 cpsr() { return apsr.back; }
+
+  void spsr(u32 value) {
+    Mode mode = Mode(M());
+    if (badMode(M())) {
+    }
+    switch (mode) {
+    case Mode::abort:
+      spsr_abt = value;
+      break;
+    case Mode::fiq:
+      spsr_fiq = value;
+      break;
+    case Mode::irq:
+      spsr_irq = value;
+      break;
+    case Mode::supervisor:
+      spsr_svc = value;
+      break;
+    case Mode::undefined:
+      spsr_und = value;
+      break;
+    default:
+      printf("wrong mood! %u\n", u32(mode));
+      exit(1);
+    }
+  }
+
+  u32 spsr() {
+    Mode mode = Mode(M());
+    if (badMode(M())) {
+    }
+    switch (mode) {
+    case Mode::abort:
+      return spsr_abt;
+    case Mode::fiq:
+      return spsr_fiq;
+    case Mode::irq:
+      return spsr_irq;
+    case Mode::supervisor:
+      return spsr_svc;
+    case Mode::undefined:
+      return spsr_und;
+    default:
+      printf("wrong mood! %u\n", u32(mode));
+      exit(1);
+    }
+  }
+
+  u32 rMode(u8 pos) {
+    if (badMode(M())) {
+    }
+    Mode mode = Mode(M());
+    if (pos < 8) {
+      return user_regs[pos];
+    }
+    if (mode == Mode::user or mode == Mode::system) {
+      return user_regs[pos];
+    }
+    if (mode == Mode::fiq) {
+      return fiq_regs[pos - 8];
+    }
+    if (pos < 13) {
+      return user_regs[pos];
+    }
+    // pos is >= 13
+    pos -= 13;
+    assert(pos < 2);
+    // r13, r14
+    switch (mode) {
+    case Mode::abort:
+      return abort_regs[pos];
+    case Mode::supervisor:
+      return supervisor_regs[pos];
+    case Mode::irq:
+      return irq_regs[pos];
+    case Mode::undefined:
+      return undefined_regs[pos];
+    default:
+      printf("wtf...\n");
+      exit(1);
+    }
+  }
+
+  void rMode(u8 pos, u32 value) {
+    if (badMode(M())) {
+    }
+    Mode mode = Mode(M());
+    if (pos < 8) {
+      user_regs[pos] = value;
+      return;
+    }
+    if (mode == Mode::user or mode == Mode::system) {
+      user_regs[pos] = value;
+      return;
+    }
+    if (mode == Mode::fiq) {
+      fiq_regs[pos - 8] = value;
+      return;
+    }
+    if (pos < 13) {
+      user_regs[pos] = value;
+      return;
+    }
+    // pos is >= 13
+    pos -= 13;
+    assert(pos < 2);
+    // r13, r14
+    switch (mode) {
+    case Mode::abort:
+      abort_regs[pos] = value;
+      break;
+    case Mode::supervisor:
+      supervisor_regs[pos] = value;
+      break;
+    case Mode::irq:
+      irq_regs[pos] = value;
+      break;
+    case Mode::undefined:
+      undefined_regs[pos] = value;
+      break;
+    default:
+      printf("wtf...\n");
+      exit(1);
+    }
+  }
+
   inline u32 r(u8 pos) {
     if ((pos & 0xf) == 15)
-      return regs[15] + 8;
-    return regs[pos & 0xf];
+      return user_regs[15] + 8;
+    return rMode(pos & 0xf);
   }
 
-  inline i32 rs(u8 pos) {
-    union {
-      u32 u;
-      i32 i;
-    } x = {.u = r(pos)};
-    return x.i;
+  inline void r(u8 pos, u32 value) { rMode(pos & 0xf, value); }
+
+  inline bool haveLPAE() { return false; }
+
+  void cpsrWriteByInstr(u32 value, u8 bytemask, bool is_excpt_return) {
+    bool privileged = curModeIsntUser();
+    bool nmfi = sctrl.b.nmfi;
+    u32 _cpsr;
+
+    if ((bytemask >> 3) & 1) {
+      if (is_excpt_return) {
+        _cpsr = (cpsr() & 0xffffff) | (value & 0xff000000);
+        cpsr(_cpsr);
+      } else {
+        _cpsr = (cpsr() & 0x7ffffff) | (value & 0xf8000000);
+        cpsr(_cpsr);
+      }
+    }
+
+    if ((bytemask >> 2) & 1) {
+      _cpsr = (cpsr() & 0xfff0ffff) | (value & 0xf0000);
+      cpsr(_cpsr);
+    }
+
+    if ((bytemask >> 1) & 1) {
+      if (is_excpt_return) {
+        _cpsr = (cpsr() & 0xffff03ff) | (value & 0xfc00);
+        cpsr(_cpsr);
+      }
+      _cpsr = (cpsr() & ~(1u << 9)) | (value & (1u << 9));
+      cpsr(_cpsr);
+      if (privileged and (isSecure() or scr.b.aw or hasVirtExt())) {
+        _cpsr = (cpsr() & ~(1u << 8)) | (value & (1u << 8));
+        cpsr(_cpsr);
+      }
+    }
+
+    if (bytemask & 1) {
+      if (privileged) {
+        _cpsr = (cpsr() & ~(1u << 7)) | (value & (1u << 7));
+        cpsr(_cpsr);
+      }
+      if (privileged and (!nmfi or !((value >> 6) & 1)) and
+          (isSecure() or scr.b.fw or hasVirtExt())) {
+        _cpsr = (cpsr() & ~(1u << 6)) | (value & (1u << 6));
+        cpsr(_cpsr);
+      }
+      if (is_excpt_return) {
+        _cpsr = (cpsr() & ~(1u << 5)) | (value & (1u << 5));
+        cpsr(_cpsr);
+      }
+      if (privileged) {
+        u8 valmode = value & 0x1f;
+        if (badMode(valmode)) {
+        }
+        if (!isSecure() and valmode == 0b10110)
+          assert(false);
+        // if(!isSecure() and valmode == 0b10001 and nsacr.rfr)
+        // assert(false);//TODO impl NSACR
+        if (scr.b.ns == 0 and valmode == 0b11010)
+          assert(false);
+        if (!isSecure() and apsr.b.m != 0b11010 and valmode == 0b11010)
+          assert(false);
+        if (apsr.b.m == 0b11010 and valmode == 0b11010 and !is_excpt_return)
+          assert(false);
+        apsr.b.m = value & 0x1f;
+      }
+    }
   }
 
-  inline void r(u8 pos, u32 value) { regs[pos & 0xf] = value; }
+  void spsrWriteByInstr(u32 value, u8 bytemask) {
+    if (curModeIsUsrSys()) {
+      assert(false);
+    }
+    u32 _spsr;
+    if ((bytemask >> 3) & 1) {
+      _spsr = (spsr() & 0xffffff) | (value & 0xff000000);
+      spsr(_spsr);
+    }
+    if ((bytemask >> 2) & 1) {
+      _spsr = (spsr() & 0xfff0ffff) | (value & 0xf0000);
+      spsr(_spsr);
+    }
+    if ((bytemask >> 1) & 1) {
+      _spsr = (spsr() & 0xffff00ff) | (value & 0xff00);
+      spsr(_spsr);
+    }
+    if (bytemask & 1) {
+      if (badMode(value & 0x1f)) {
+      }
+      _spsr = (spsr() & 0xffffff00) | (value & 0xff);
+      spsr(_spsr);
+    }
+  }
 
   inline u8 currentInstrSet() { return 0; }
 
-  inline u32 pcStoreValue() { return regs[15] + 8; }
+  inline u32 pcStoreValue() { return r(15); }
 
-  inline u32 branchTo(u32 ptr) { 
-    regs[15] = ptr;
-    return ptr; 
+  inline u32 branchTo(u32 ptr) {
+    user_regs[15] = ptr;
+    return ptr;
   }
 
   inline void branchWritePc(u32 ptr) {
@@ -96,34 +442,30 @@ struct Cpu {
     branchTo(ptr & (0xffffffff << 2));
   }
 
-  inline u32 sp() { return regs[13]; }
+  inline u32 sp() { return r(13); }
 
-  inline void sp(u32 v) { regs[13] = v; }
+  inline void sp(u32 v) { r(13, v); }
 
-  inline u32 rl() { return regs[14]; }
+  inline u32 rl() { return r(14); }
 
-  inline void rl(u32 v) { regs[14] = v; }
+  inline void rl(u32 v) { r(14, v); }
 
-  inline u32 pc() { return regs[15] + 8; }
+  inline u32 pc() { return r(15); }
 
-  inline u32 pcReal() { return regs[15]; }
-  inline void pcReal(u32 v) { regs[15] = v; }
+  inline u32 pcReal() { return user_regs[15]; }
+  inline void pcReal(u32 v) { branchTo(v); }
 
   inline u32 bxWritePc(u32 ptr) {
     if ((ptr & 0b11) == 0) {
       return branchTo(ptr);
     }
-    printf("%u %x\n",ptr, ptr);
+    printf("%u %x\n", ptr, ptr);
     assert(true ? false : "bad address" == nullptr);
   }
 
-  inline u32 aluWritePc(u32 ptr) {
-    return bxWritePc(ptr);
-  }
+  inline u32 aluWritePc(u32 ptr) { return bxWritePc(ptr); }
 
-  inline u32 loadWritePc(u32 ptr) {
-    return bxWritePc(ptr);
-  }
+  inline u32 loadWritePc(u32 ptr) { return bxWritePc(ptr); }
 
   inline u32 expandImm(u16 imm12) { return Arith::expandImmC(imm12).v.u; }
 
@@ -223,22 +565,10 @@ struct Cpu {
 
   inline u8 decodeRegShift(u8 type) { return type & 0b11; }
 
-  inline bool curModeIsUsrSys() {
-    // TODO
-    return true;
-  }
-
-  inline bool curModeIsntUser() {
-    // TODO
-    return false;
-  }
-
   bool intZeroDivTrapping() {
     // TODO
     return false;
   }
-
-  inline bool haveLPAE() { return false; }
 
   inline void setExclusiveMonitor(u32 addr, u8 n) {
     // TODO
@@ -263,7 +593,7 @@ struct Cpu {
   inline bool aligned16(u32 a) { return (a & 0b1) == 0; }
 
   inline u32 bx() {
-    if(cnd()) {
+    if (cnd()) {
       return bxWritePc(r(cur));
     }
     return nxt();
@@ -271,7 +601,7 @@ struct Cpu {
 
   inline u32 b() {
     if (cnd()) {
-      u32 imm32 = uns32(s32(cur << 8)>>6);
+      u32 imm32 = uns32(s32(cur << 8) >> 6);
       branchWritePc(pc() + imm32);
       return pcReal();
     }
@@ -280,7 +610,7 @@ struct Cpu {
 
   inline u32 bl() {
     if (cnd()) {
-      u32 imm32 = uns32(s32(cur<< 8)>>6);
+      u32 imm32 = uns32(s32(cur << 8) >> 6);
       r(14, pc() - 4);
       branchWritePc(pc() + imm32);
       return pcReal();

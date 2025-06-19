@@ -55,4 +55,13 @@ void write(u32 addr, u32 value, u8 width) {
   }
 }
 
+Region getRegion() {
+  return {
+      .start = 0x40000000,
+      .len = 0x1000,
+      .r = &read,
+      .w = &write,
+  };
+}
+
 } // namespace UART
