@@ -21,14 +21,22 @@ int  main() {
 
   c.mem.regions.push_back(UART::getRegion());
 
-  c.pcReal(elf.header.e_entry);
+  //c.pcReal(elf.header.e_entry);
+  printf("Header entry %x\n", elf.header.e_entry);
+  c.reset();
 
   while(true) {
-    //printf("pc: %u sp: %u, r0: %x\n", c.pcReal(), c.r(13), c.r(0));
+   // printf("pc: %u sp: %u, r0: %x\n", c.pcReal(), c.r(13), c.r(0));
     u32 word = c.mem.a32u(c.pcReal());
+    Decoder::printInstr(Decoder::decodeA(word));
+    try {
     u32 pc = c.exec(word);
     c.pcReal(pc);
-    //fgetc(stdin);
+    } catch(InvalidRegion& in) {
+      printf("===invalid region===\n");
+      c.pcReal(c.takeDataAbortException());
+    }
+    fgetc(stdin);
   }
 }
 #else

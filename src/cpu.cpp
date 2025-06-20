@@ -424,6 +424,10 @@ u32 Cpu::exec(u32 word) {
     return bl();
   case Instr::bx:
     return bx();
+  case Instr::undefined:
+    return takeUndefInstrException();
+  case Instr::svc:
+    return svc();
   case Instr::wfi:
     printf("==== WFI ====\n");
     exit(0);

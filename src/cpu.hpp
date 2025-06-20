@@ -21,16 +21,18 @@ struct Cpu {
       u32 i : 1;
       u32 a : 1;
       u32 e : 1;
-      u32 _1 : 6;
+      u32 it : 6 = 0;
       u32 ge : 4;
-      u32 _2 : 7;
+      u32 _1: 4;
+      u32 j: 1 = 0;
+      u32 it2 : 2 = 0;
       u32 q : 1;
       u32 v : 1;
       u32 c : 1;
       u32 z : 1;
       u32 n : 1;
     } b;
-    u32 back = 0b10011; // supervisor mode
+    u32 back;
   };
 
   union SCTLR {
@@ -89,18 +91,17 @@ struct Cpu {
   SCTLR sctrl = {};
   SCR scr = {};
   // regs
-  u32 user_regs[16] = {0};
-  u32 fiq_regs[8] = {0};
-  u32 supervisor_regs[2] = {0};
-  u32 abort_regs[2] = {0};
-  u32 undefined_regs[2] = {0};
-  u32 irq_regs[2] = {0};
+  u32 regs[15][32] = {0};
   // spsr
   u32 spsr_svc;
   u32 spsr_abt;
   u32 spsr_und;
   u32 spsr_irq;
   u32 spsr_fiq;
+  // pc
+  u32 progcounter;
+
+  u8 memfault = false;
 
   Memory<1024 * 1024> mem;
 
@@ -179,6 +180,16 @@ struct Cpu {
       assert(false);
     }
   }
+  
+  u8 getBank() {
+    switch(Mode(M())) {
+      case Mode::user:
+      case Mode::system:
+        return u8(Mode::user);
+      default:
+        return M();
+    }  
+  }
 
   inline bool curModeIsUsrSys() {
     if (badMode(M())) {
@@ -251,86 +262,28 @@ struct Cpu {
 
   u32 rMode(u8 pos) {
     if (badMode(M())) {
-    }
-    Mode mode = Mode(M());
-    if (pos < 8) {
-      return user_regs[pos];
-    }
-    if (mode == Mode::user or mode == Mode::system) {
-      return user_regs[pos];
-    }
-    if (mode == Mode::fiq) {
-      return fiq_regs[pos - 8];
-    }
-    if (pos < 13) {
-      return user_regs[pos];
-    }
-    // pos is >= 13
-    pos -= 13;
-    assert(pos < 2);
-    // r13, r14
-    switch (mode) {
-    case Mode::abort:
-      return abort_regs[pos];
-    case Mode::supervisor:
-      return supervisor_regs[pos];
-    case Mode::irq:
-      return irq_regs[pos];
-    case Mode::undefined:
-      return undefined_regs[pos];
-    default:
-      printf("wtf...\n");
-      exit(1);
-    }
+    };
+    return regs[getBank()][pos];
   }
 
   void rMode(u8 pos, u32 value) {
     if (badMode(M())) {
     }
-    Mode mode = Mode(M());
-    if (pos < 8) {
-      user_regs[pos] = value;
-      return;
-    }
-    if (mode == Mode::user or mode == Mode::system) {
-      user_regs[pos] = value;
-      return;
-    }
-    if (mode == Mode::fiq) {
-      fiq_regs[pos - 8] = value;
-      return;
-    }
-    if (pos < 13) {
-      user_regs[pos] = value;
-      return;
-    }
-    // pos is >= 13
-    pos -= 13;
-    assert(pos < 2);
-    // r13, r14
-    switch (mode) {
-    case Mode::abort:
-      abort_regs[pos] = value;
-      break;
-    case Mode::supervisor:
-      supervisor_regs[pos] = value;
-      break;
-    case Mode::irq:
-      irq_regs[pos] = value;
-      break;
-    case Mode::undefined:
-      undefined_regs[pos] = value;
-      break;
-    default:
-      printf("wtf...\n");
-      exit(1);
-    }
+    regs[getBank()][pos] = value;
   }
 
   inline u32 r(u8 pos) {
     if ((pos & 0xf) == 15)
-      return user_regs[15] + 8;
+      return progcounter + 8;
     return rMode(pos & 0xf);
+  }
+
+  u32 excVectorBase() {
+    if(sctrl.b.v) {
+      return 0xffff0000;
+    }
+    if(hasSecurityExt()) assert(false);
+    return 0;
   }
 
   inline void r(u8 pos, u32 value) { rMode(pos & 0xf, value); }
@@ -433,7 +386,7 @@ struct Cpu {
   inline u32 pcStoreValue() { return r(15); }
 
   inline u32 branchTo(u32 ptr) {
-    user_regs[15] = ptr;
+    progcounter = ptr;
     return ptr;
   }
 
@@ -452,7 +405,7 @@ struct Cpu {
 
   inline u32 pc() { return r(15); }
 
-  inline u32 pcReal() { return user_regs[15]; }
+  inline u32 pcReal() { return progcounter; }
   inline void pcReal(u32 v) { branchTo(v); }
 
   inline u32 bxWritePc(u32 ptr) {
@@ -592,6 +545,90 @@ struct Cpu {
   inline bool aligned32(u32 a) { return (a & 0b11) == 0; }
   inline bool aligned16(u32 a) { return (a & 0b1) == 0; }
 
+  u32 reset() {
+    cpsr(u8(Mode::supervisor));
+    apsr.b.e = 0;
+    apsr.b.i = 1;
+    apsr.b.f = 1;
+    apsr.b.a = 1;
+    apsr.b.j = 0;
+    apsr.b.t = 0;
+    apsr.b.it = apsr.b.it2 = 0;
+
+    u32 reset_vector = excVectorBase()&0xfffffffe;
+    return branchTo(reset_vector);
+  }
+
+  u32 takeUndefInstrException() {
+    u32 new_lr_value = pc()-4;
+    u32 new_spsr_value = cpsr();
+    apsr.b.m = u8(Mode::undefined);
+    spsr(new_spsr_value);
+    r(14, new_lr_value);
+    apsr.b.i = 1;
+    apsr.b.it = apsr.b.it2 = 0;
+    apsr.b.j = 0;
+    apsr.b.t = sctrl.b.te;
+    apsr.b.e = sctrl.b.ee;
+    return branchTo(excVectorBase()+4);
+  }
+
+  u32 takeSVCException() {
+    u32 new_lr_value = pc()-4;
+    u32 new_spsr_value = cpsr();
+    apsr.b.m = u8(Mode::supervisor);
+    spsr(new_spsr_value);
+    r(14, new_lr_value);
+    apsr.b.i = 1;
+    apsr.b.it = apsr.b.it2 = 0;
+    apsr.b.j = 0;
+    apsr.b.t = sctrl.b.te;
+    apsr.b.e = sctrl.b.ee;
+    return branchTo(excVectorBase()+8);
+  }
+  
+  u32 callSuperVisor(u16 value) {
+    (void)value;
+   return takeSVCException();
+  }
+
+  
+  u32 takePrefetchAbortException() {
+    u32 new_lr_value = pc()-4;
+    u32 new_spsr_value = cpsr();
+    apsr.b.m = u8(Mode::abort);
+    spsr(new_spsr_value);
+    r(14, new_lr_value);
+    apsr.b.i = 1;
+    apsr.b.it = apsr.b.it2 = 0;
+    apsr.b.j = 0;
+    apsr.b.t = sctrl.b.te;
+    apsr.b.e = sctrl.b.ee;
+    return branchTo(excVectorBase()+12);
+  }
+
+
+  u32 takeDataAbortException() {
+    u32 new_lr_value = pc();
+    u32 new_spsr_value = cpsr();
+    apsr.b.m = u8(Mode::abort);
+    spsr(new_spsr_value);
+    r(14, new_lr_value);
+    apsr.b.i = 1;
+    apsr.b.it = apsr.b.it2 = 0;
+    apsr.b.j = 0;
+    apsr.b.t = sctrl.b.te;
+    apsr.b.e = sctrl.b.ee;
+    return branchTo(excVectorBase()+16);
+  }
+
+  inline u32 svc() {
+    if(cnd()) {
+      return callSuperVisor(cur);
+    }
+    return nxt();
+  }
+
   inline u32 bx() {
     if (cnd()) {
       return bxWritePc(r(cur));
@@ -629,7 +666,7 @@ struct Cpu {
       bool setpc = false;
       for (u8 i = 0; i < 15 and registers; i++) {
         if (registers & 1) {
-          r(i, mem.a32a(address));
+         r(i, mem.a32a(address));
           address += 4;
         }
         registers >>= 1;

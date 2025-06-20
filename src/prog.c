@@ -22,8 +22,10 @@ int main() {
   return 0;
 }
 
+__attribute__((section(".text.reset")))
 __attribute__((naked)) void _start() {
-  asm volatile("ldr sp, =stack+1024");
+  asm volatile("svc #0");
+  asm volatile("ldr sp, =stack-1");
   asm volatile("bl main");
   asm volatile("b .");
 }

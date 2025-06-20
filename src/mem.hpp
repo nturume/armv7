@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstring>
+#include <exception>
 #include <memory>
 #include <vector>
 
@@ -15,16 +16,16 @@ struct Region {
 
   u32 (*r)(u32 addr, u8 width) = nullptr;
   void (*w)(u32 addr, u32 value, u8 width) = nullptr;
-  
+
   u32 (*ra)(u32 addr, u8 width) = nullptr;
   void (*wa)(u32 addr, u32 value, u8 width) = nullptr;
 
-  bool has(u32 addr) { return addr >= start and addr < (start+len); }
+  bool has(u32 addr) { return addr >= start and addr < (start + len); }
 
   u32 read(u32 addr, u8 width) {
     if (r != nullptr) {
       return r(addr, width);
-    }    
+    }
     assert("region read() is arsenal UCL" == nullptr);
   }
 
@@ -36,21 +37,24 @@ struct Region {
   }
 };
 
+struct InvalidRegion : std::exception {
+  u32 address;
+  InvalidRegion(u32 addr) :address(addr) {};
+};
+
 template <int size> struct Memory {
   u8 buf[size + 4];
   u32 rambase = 0;
 
   std::vector<Region> regions = {};
 
-  //Memory(u32 rambase) : rambase(rambase) {}
+  // Memory(u32 rambase) : rambase(rambase) {}
 
   inline bool isRam(u32 addr) {
-    return addr >= rambase and addr < (rambase+size);
+    return addr >= rambase and addr < (rambase + size);
   }
 
-  inline u32 ramOfft(u32 addr) {
-    return addr - rambase;
-  }
+  inline u32 ramOfft(u32 addr) { return addr - rambase; }
 
   void writeRegion(u32 addr, u32 value, u8 width) {
     for (u32 i = 0; i < regions.size(); i++) {
@@ -59,7 +63,7 @@ template <int size> struct Memory {
         return region.write(addr, value, width);
       }
     }
-    printf("WARNING: write() region with address 0x%x not found\n", addr);
+    throw InvalidRegion(addr);
   }
 
   u32 readRegion(u32 addr, u8 width) {
@@ -69,85 +73,97 @@ template <int size> struct Memory {
         return region.read(addr, width);
       }
     }
-    printf("WARNING: read() region with address 0x%x not found\n", addr);
+    throw InvalidRegion(addr);
   }
 
   u32 a32u(u64 pos) {
-    if (!isRam(pos))
-      return readRegion(pos, 4);
-    return *reinterpret_cast<u32 *>(&buf[ramOfft(pos)]);
+    if (isRam(pos)) {
+      return *reinterpret_cast<u32 *>(&buf[ramOfft(pos)]);
+    }
+    return readRegion(pos, 4);
   }
 
   void a32u(u64 pos, u32 value) {
-    if (!isRam(pos))
-      return writeRegion(pos, value, 4);
-    *reinterpret_cast<u32 *>(&buf[ramOfft(pos)]) = value;
+    if (isRam(pos)) {
+      *reinterpret_cast<u32 *>(&buf[ramOfft(pos)]) = value;
+    }
+    return writeRegion(pos, value, 4);
   }
 
   u16 a16u(u64 pos) {
-    if (!isRam(pos))
-      return readRegion(pos, 2);
-    return *reinterpret_cast<u16 *>(&buf[ramOfft(pos)]);
+    if (isRam(pos)) {
+      return *reinterpret_cast<u16 *>(&buf[ramOfft(pos)]);
+    }
+    return readRegion(pos, 2);
   }
 
   void a16u(u64 pos, u16 value) {
-    if (!isRam(pos))
-      return writeRegion(pos, value, 2);
-    *reinterpret_cast<u16 *>(&buf[ramOfft(pos)]) = value;
+    if (isRam(pos)) {
+      *reinterpret_cast<u16 *>(&buf[ramOfft(pos)]) = value;
+    }
+    return writeRegion(pos, value, 2);
   }
 
   u8 a8u(u64 pos) {
-    if (!isRam(pos))
-      return readRegion(pos, 1);
-    return buf[ramOfft(pos)];
+    if (isRam(pos)) {
+      return buf[ramOfft(pos)];
+    }
+    return readRegion(pos, 1);
   }
 
   void a8u(u64 pos, u8 value) {
-    if (!isRam(pos))
-      return writeRegion(pos, value, 1);
-    buf[ramOfft(pos)] = value;
+    if (isRam(pos)) {
+      buf[ramOfft(pos)] = value;
+    }
+    return writeRegion(pos, value, 1);
   }
 
   u32 a32a(u64 pos) {
     // TODO
-    if (!isRam(pos))
-      return readRegion(pos, 4);
-    return *reinterpret_cast<u32 *>(&buf[ramOfft(pos)]);
+    if (isRam(pos)) {
+      return *reinterpret_cast<u32 *>(&buf[ramOfft(pos)]);
+    }
+    return readRegion(pos, 4);
   }
 
   void a32a(u64 pos, u32 value) {
     // TODO
-    if (!isRam(pos))
-      return writeRegion(pos, value, 4);
-    *reinterpret_cast<u32 *>(&buf[ramOfft(pos)]) = value;
+    if (isRam(pos)) {
+      *reinterpret_cast<u32 *>(&buf[ramOfft(pos)]) = value;
+    }
+    return writeRegion(pos, value, 4);
   }
 
   u16 a16a(u64 pos) {
     // TODO
-    if (!isRam(pos))
-      return readRegion(pos, 2);
-    return *reinterpret_cast<u16 *>(&buf[ramOfft(pos)]);
+    if (isRam(pos)) {
+      return *reinterpret_cast<u16 *>(&buf[ramOfft(pos)]);
+    }
+    return readRegion(pos, 2);
   }
 
   void a16a(u64 pos, u16 value) {
     // TODO
-    if (!isRam(pos))
-      return writeRegion(pos, value, 2);
-    *reinterpret_cast<u16 *>(&buf[ramOfft(pos)]) = value;
+    if (isRam(pos)) {
+      *reinterpret_cast<u16 *>(&buf[ramOfft(pos)]) = value;
+    }
+    return writeRegion(pos, value, 2);
   }
 
   u8 a8a(u64 pos) {
     // TODO
-    if (!isRam(pos))
-      return readRegion(pos, 1);
-    return buf[ramOfft(pos)];
+    if (isRam(pos)) {
+      return buf[ramOfft(pos)];
+    }
+    return readRegion(pos, 1);
   }
 
   void a8a(u64 pos, u8 value) {
     // TODO
-    if (!isRam(pos))
-      return writeRegion(pos, value, 1);
-    buf[ramOfft(pos)] = value;
+    if (isRam(pos)) {
+      buf[ramOfft(pos)] = value;
+    }
+    return writeRegion(pos, value, 1);
   }
 
   void loadElf(Elf::ProgramHeaderIterator it) {
