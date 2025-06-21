@@ -43,11 +43,22 @@ struct FileReader {
     }
   }
 
+
   fn seekTo(i64 n) {
     if (fseek(f, n, SEEK_SET)) {
       printf("FileReader::seekBy() failed.\n");
       std::exit(1);
     }
+  }
+  
+  u32 getFileSize() {
+    if (fseek(f, 0, SEEK_END)) {
+      printf("FileReader::getFileSize() failed.\n");
+      std::exit(1);
+    }
+    u32 size = ftell(f);
+    seekTo(0);
+    return size;
   }
 };
 

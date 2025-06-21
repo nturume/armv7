@@ -1,15 +1,10 @@
 #pragma once
 #include "arith.hpp"
 #include "assert.h"
-#include "decoder.hpp"
 #include "mem.hpp"
 #include "stuff.hpp"
 #include <cmath>
 #include <cstdio>
-#include <functional>
-#include <iosfwd>
-#include <string>
-#include <system_error>
 
 struct Cpu {
 
@@ -23,8 +18,8 @@ struct Cpu {
       u32 e : 1;
       u32 it : 6 = 0;
       u32 ge : 4;
-      u32 _1: 4;
-      u32 j: 1 = 0;
+      u32 _1 : 4;
+      u32 j : 1 = 0;
       u32 it2 : 2 = 0;
       u32 q : 1;
       u32 v : 1;
@@ -103,7 +98,7 @@ struct Cpu {
 
   u8 memfault = false;
 
-  Memory<1024 * 1024> mem;
+  Memory mem;
 
   u32 cur;
 
@@ -157,6 +152,31 @@ struct Cpu {
     _
   };
 
+  int printMode(u8 mode) {
+    switch (Mode(mode)) {
+    case Mode::user:
+      return printf("Mode::user\n");
+    case Mode::fiq:
+      return printf("Mode::fiq\n");
+    case Mode::irq:
+      return printf("Mode::irq\n");
+    case Mode::supervisor:
+      return printf("Mode::supervisor\n");
+    case Mode::abort:
+      return printf("Mode::abort\n");
+    case Mode::undefined:
+      return printf("Mode::undefined\n");
+    case Mode::system:
+      return printf("Mode::system\n");
+    case Mode::hyp:
+      return printf("Mode::hype\n");
+    case Mode::monitor:
+      return printf("Mode::monitor\n");
+    default:
+      return printf("Mode::_\n");
+    }
+  }
+
   bool hasSecurityExt() { return false; }
 
   bool isSecure() { return false; }
@@ -176,36 +196,32 @@ struct Cpu {
     // case Mode::hyp:return !hasVirtExt();
     // case Mode::monitor:return !hasSecurityExt();
     default:
-      printf("bad mode\n");
-      assert(false);
+      return true;
     }
   }
-  
-  u8 getBank() {
-    switch(Mode(M())) {
-      case Mode::user:
-      case Mode::system:
-        return u8(Mode::user);
-      default:
-        return M();
-    }  
+
+  u8 getBank(u8 rmode) {
+    switch (Mode(rmode)) {
+    case Mode::user:
+    case Mode::system:
+      return u8(Mode::user);
+    default:
+      return M();
+    }
   }
 
   inline bool curModeIsUsrSys() {
-    if (badMode(M())) {
-    }
+    assert(!badMode(M()));
     return Mode(M()) == Mode::user or Mode(M()) == Mode::system ? true : false;
   }
 
   inline bool curModeIsHype() {
-    if (badMode(M())) {
-    }
+    assert(!badMode(M()));
     return Mode(M()) == Mode::hyp ? true : false;
   }
 
   inline bool curModeIsntUser() {
-    if (badMode(M())) {
-    }
+    assert(!badMode(M()));
     return Mode(M()) == Mode::user ? false : true;
   }
 
@@ -215,8 +231,7 @@ struct Cpu {
 
   void spsr(u32 value) {
     Mode mode = Mode(M());
-    if (badMode(M())) {
-    }
+    assert(!badMode(M()));
     switch (mode) {
     case Mode::abort:
       spsr_abt = value;
@@ -241,8 +256,7 @@ struct Cpu {
 
   u32 spsr() {
     Mode mode = Mode(M());
-    if (badMode(M())) {
-    }
+    assert(!badMode(M()));
     switch (mode) {
     case Mode::abort:
       return spsr_abt;
@@ -260,33 +274,32 @@ struct Cpu {
     }
   }
 
-  u32 rMode(u8 pos) {
-    if (badMode(M())) {
-    };
-    return regs[getBank()][pos];
+  u32 rMode(u8 pos, u8 rmode) {
+    assert(!badMode(rmode));
+    return regs[getBank(rmode)][pos];
   }
 
-  void rMode(u8 pos, u32 value) {
-    if (badMode(M())) {
-    }
-    regs[getBank()][pos] = value;
+  void rMode(u8 pos, u32 value, u8 rmode) {
+    assert(!badMode(rmode));
+    regs[getBank(rmode)][pos] = value;
   }
 
   inline u32 r(u8 pos) {
     if ((pos & 0xf) == 15)
       return progcounter + 8;
-    return rMode(pos & 0xf);
+    return rMode(pos & 0xf, M());
   }
 
   u32 excVectorBase() {
-    if(sctrl.b.v) {
+    if (sctrl.b.v) {
       return 0xffff0000;
     }
-    if(hasSecurityExt()) assert(false);
+    if (hasSecurityExt())
+      assert(false);
     return 0;
   }
 
-  inline void r(u8 pos, u32 value) { rMode(pos & 0xf, value); }
+  inline void r(u8 pos, u32 value) { rMode(pos & 0xf, value, M()); }
 
   inline bool haveLPAE() { return false; }
 
@@ -339,8 +352,7 @@ struct Cpu {
       }
       if (privileged) {
         u8 valmode = value & 0x1f;
-        if (badMode(valmode)) {
-        }
+        assert(!badMode(valmode));
         if (!isSecure() and valmode == 0b10110)
           assert(false);
         // if(!isSecure() and valmode == 0b10001 and nsacr.rfr)
@@ -374,8 +386,7 @@ struct Cpu {
       spsr(_spsr);
     }
     if (bytemask & 1) {
-      if (badMode(value & 0x1f)) {
-      }
+      assert(!badMode(value & 0x1f));
       _spsr = (spsr() & 0xffffff00) | (value & 0xff);
       spsr(_spsr);
     }
@@ -390,9 +401,8 @@ struct Cpu {
     return ptr;
   }
 
-  inline void branchWritePc(u32 ptr) {
-    //
-    branchTo(ptr & (0xffffffff << 2));
+  inline u32 branchWritePc(u32 ptr) {
+    return branchTo(ptr & (0xffffffff << 2));
   }
 
   inline u32 sp() { return r(13); }
@@ -555,12 +565,12 @@ struct Cpu {
     apsr.b.t = 0;
     apsr.b.it = apsr.b.it2 = 0;
 
-    u32 reset_vector = excVectorBase()&0xfffffffe;
+    u32 reset_vector = excVectorBase() & 0xfffffffe;
     return branchTo(reset_vector);
   }
 
   u32 takeUndefInstrException() {
-    u32 new_lr_value = pc()-4;
+    u32 new_lr_value = pc() - 4;
     u32 new_spsr_value = cpsr();
     apsr.b.m = u8(Mode::undefined);
     spsr(new_spsr_value);
@@ -570,11 +580,11 @@ struct Cpu {
     apsr.b.j = 0;
     apsr.b.t = sctrl.b.te;
     apsr.b.e = sctrl.b.ee;
-    return branchTo(excVectorBase()+4);
+    return branchTo(excVectorBase() + 4);
   }
 
   u32 takeSVCException() {
-    u32 new_lr_value = pc()-4;
+    u32 new_lr_value = pc() - 4;
     u32 new_spsr_value = cpsr();
     apsr.b.m = u8(Mode::supervisor);
     spsr(new_spsr_value);
@@ -584,17 +594,16 @@ struct Cpu {
     apsr.b.j = 0;
     apsr.b.t = sctrl.b.te;
     apsr.b.e = sctrl.b.ee;
-    return branchTo(excVectorBase()+8);
-  }
-  
-  u32 callSuperVisor(u16 value) {
-    (void)value;
-   return takeSVCException();
+    return branchTo(excVectorBase() + 8);
   }
 
-  
+  u32 callSuperVisor(u16 value) {
+    (void)value;
+    return takeSVCException();
+  }
+
   u32 takePrefetchAbortException() {
-    u32 new_lr_value = pc()-4;
+    u32 new_lr_value = pc() - 4;
     u32 new_spsr_value = cpsr();
     apsr.b.m = u8(Mode::abort);
     spsr(new_spsr_value);
@@ -604,9 +613,8 @@ struct Cpu {
     apsr.b.j = 0;
     apsr.b.t = sctrl.b.te;
     apsr.b.e = sctrl.b.ee;
-    return branchTo(excVectorBase()+12);
+    return branchTo(excVectorBase() + 12);
   }
-
 
   u32 takeDataAbortException() {
     u32 new_lr_value = pc();
@@ -619,11 +627,172 @@ struct Cpu {
     apsr.b.j = 0;
     apsr.b.t = sctrl.b.te;
     apsr.b.e = sctrl.b.ee;
-    return branchTo(excVectorBase()+16);
+    return branchTo(excVectorBase() + 16);
+  }
+
+  inline u32 cps() {
+    if (curModeIsntUser()) {
+      u8 imod = (cur >> 18) & 0b11;
+      bool enable = imod == 0b10;
+      bool disable = imod == 0b11;
+      bool changemode = cbit(17);
+      bool affectA = cbit(8);
+      bool affectI = cbit(7);
+      bool affectF = cbit(6);
+      u8 mode = cur & 0x1f;
+      u32 cpsr_val = cpsr();
+      if (enable) {
+        if (affectA)
+          cpsr_val &= ~(1u << 8);
+        if (affectI)
+          cpsr_val &= ~(1u << 7);
+        if (affectF)
+          cpsr_val &= ~(1u << 6);
+      }
+      if (disable) {
+        if (affectA)
+          cpsr_val |= (1u << 8);
+        if (affectA)
+          cpsr_val |= (1u << 7);
+        if (affectA)
+          cpsr_val |= (1u << 7);
+      }
+      if (changemode) {
+        cpsr_val &= ~(0x1fu);
+        cpsr_val |= mode;
+      }
+      cpsrWriteByInstr(cpsr_val, 0xf, false);
+    }
+    return nxt();
+  }
+
+  inline u32 rfe() {
+    if (cnd()) {
+      bool wback = cbit(21);
+      bool increment = cbit(23);
+      bool wordhigher = cbit(24) == cbit(23);
+      u8 _n = cur >> 16;
+      assert(curModeIsntUser());
+      u32 address = increment ? r(_n) : r(_n) - 8;
+      if (wordhigher)
+        address += 4;
+      u32 new_pc_value = mem.a32a(address);
+      u32 spsr_value = mem.a32a(address + 4);
+      if (wback) {
+        r(_n, increment ? r(_n) + 8 : r(_n) - 8);
+      }
+      cpsrWriteByInstr(spsr_value, 0xf, true);
+      return branchWritePc(new_pc_value);
+    }
+    return nxt();
+  }
+
+  inline u32 srs() {
+    if (cnd()) {
+      bool wback = cbit(21);
+      bool increment = cbit(23);
+      bool wordhigher = cbit(24) == cbit(23);
+      u8 mode = cur & 0b11111;
+      assert(!curModeIsHype());
+      assert(!curModeIsUsrSys());
+      assert(mode != 0b11010);
+      u32 base = rMode(13, mode);
+      u32 address = increment ? base : base - 8;
+      if (wordhigher)
+        address += 4;
+      mem.a32a(address, r(14));
+      mem.a32a(address + 4, spsr());
+      if (wback) {
+        rMode(13, increment ? base + 8 : base - 8, mode);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 subsPcLr(u8 _n, u32 op2) {
+    if (cnd()) {
+      assert(!curModeIsHype());
+      assert(!curModeIsUsrSys());
+      u8 opcode = (cur >> 21) & 0xf;
+      u32 result;
+      switch (opcode) {
+      case 0b0000:
+        result = r(_n) & op2;
+        break;
+      case 0b0001:
+        result = r(_n) ^ op2;
+        break;
+      case 0b0010:
+        result = Arith::adc(r(_n), ~op2, 1).r;
+        break;
+      case 0b0011:
+        result = Arith::adc(~r(_n), op2, 1).r;
+        break;
+      case 0b0100:
+        result = Arith::adc(r(_n), op2, 0).r;
+        break;
+      case 0b0101:
+        result = Arith::adc(r(_n), op2, c()).r;
+        break;
+      case 0b0110:
+        result = Arith::adc(r(_n), ~op2, c()).r;
+        break;
+      case 0b0111:
+        result = Arith::adc(~r(_n), op2, c()).r;
+        break;
+      case 0b1100:
+        result = r(_n) | op2;
+        break;
+      case 0b1101:
+        result = op2;
+        break;
+      case 0b1110:
+        result = r(_n) & ~op2;
+        break;
+      case 0b1111:
+        result = ~op2;
+        break;
+      default:
+        result = op2;
+      }
+      cpsrWriteByInstr(spsr(), 0xf, true);
+      return branchWritePc(result);
+    }
+    return nxt();
+  }
+
+  inline u32 msrSys() {
+    if (cnd()) {
+      u8 n = cur;
+      bool write_spsr = cbit(22);
+      u8 mask = (cur >> 16) & 0xf;
+      assert(mask != 0);
+      if (write_spsr) {
+        spsrWriteByInstr(r(n), mask);
+      } else {
+        cpsrWriteByInstr(r(n), mask, false);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 msrImmSys() {
+    if (cnd()) {
+      u32 imm32 = expandImm(cur);
+      bool write_spsr = cbit(22);
+      u8 mask = (cur >> 16) & 0xf;
+      assert(mask != 0);
+      if (write_spsr) {
+        spsrWriteByInstr(imm32, mask);
+      } else {
+        cpsrWriteByInstr(imm32, mask, false);
+      }
+    }
+    return nxt();
   }
 
   inline u32 svc() {
-    if(cnd()) {
+    if (cnd()) {
       return callSuperVisor(cur);
     }
     return nxt();
@@ -666,7 +835,7 @@ struct Cpu {
       bool setpc = false;
       for (u8 i = 0; i < 15 and registers; i++) {
         if (registers & 1) {
-         r(i, mem.a32a(address));
+          r(i, mem.a32a(address));
           address += 4;
         }
         registers >>= 1;
@@ -1567,7 +1736,8 @@ struct Cpu {
       u8 d = cur >> 12;
       bool read_spsr = (cur & (1 << 22)) > 0;
       if (read_spsr) {
-        assert("msr read_spsr" == nullptr);
+        assert(!curModeIsUsrSys());
+        r(d, spsr());
       } else {
         r(d, apsr.back & 0b11111000111111110000001111011111);
       }
@@ -1829,7 +1999,11 @@ struct Cpu {
       u8 d = (cur >> 12) & 0xf;
       u8 _n = cur >> 16;
       bool setflags = (cur & (1 << 20)) > 0;
-      Arith::Adc a = Arith::adc(r(_n), ~expandImm(u16(cur)), 1);
+      u32 imm32 = expandImm(cur);
+      if (d == 15 and setflags) {
+        return subsPcLr(_n, imm32);
+      }
+      Arith::Adc a = Arith::adc(r(_n), ~imm32, 1);
       if (d == 15)
         return aluWritePc(a.r);
       r(d, a.r);
@@ -1851,6 +2025,9 @@ struct Cpu {
       bool setflags = (cur & (1 << 20)) > 0;
       Arith::Is s = Arith::decodeImmShift((cur >> 5), (cur >> 7));
       Arith::Res shifted = Arith::shiftC(r(m), s.t, s.n, c());
+      if (d == 15 and setflags) {
+        return subsPcLr(_n, shifted.u());
+      }
       Arith::Adc adc = Arith::adc(r(_n), ~shifted.u(), 1);
       if (d == 15) {
         return aluWritePc(adc.r);

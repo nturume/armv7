@@ -428,6 +428,16 @@ u32 Cpu::exec(u32 word) {
     return takeUndefInstrException();
   case Instr::svc:
     return svc();
+  case Instr::msrSys:
+    return msrSys();
+  case Instr::srs:
+    return srs();
+  case Instr::rfe:
+    return rfe();
+  case Instr::msrImmSys:
+    return msrImmSys();
+  case Instr::cps:
+    return cps();
   case Instr::wfi:
     printf("==== WFI ====\n");
     exit(0);

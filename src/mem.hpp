@@ -39,16 +39,20 @@ struct Region {
 
 struct InvalidRegion : std::exception {
   u32 address;
-  InvalidRegion(u32 addr) :address(addr) {};
+  InvalidRegion(u32 addr) : address(addr){};
 };
 
-template <int size> struct Memory {
-  u8 buf[size + 4];
+struct Memory {
+  u32 size = 1024 * 1024 * 10;
+  u8 *buf;
   u32 rambase = 0;
 
   std::vector<Region> regions = {};
 
-  // Memory(u32 rambase) : rambase(rambase) {}
+  Memory() {
+    buf = new u8[size + 8];
+    rambase = 0;
+  }
 
   inline bool isRam(u32 addr) {
     return addr >= rambase and addr < (rambase + size);
@@ -86,6 +90,7 @@ template <int size> struct Memory {
   void a32u(u64 pos, u32 value) {
     if (isRam(pos)) {
       *reinterpret_cast<u32 *>(&buf[ramOfft(pos)]) = value;
+      return;
     }
     return writeRegion(pos, value, 4);
   }
@@ -100,6 +105,7 @@ template <int size> struct Memory {
   void a16u(u64 pos, u16 value) {
     if (isRam(pos)) {
       *reinterpret_cast<u16 *>(&buf[ramOfft(pos)]) = value;
+      return;
     }
     return writeRegion(pos, value, 2);
   }
@@ -114,6 +120,7 @@ template <int size> struct Memory {
   void a8u(u64 pos, u8 value) {
     if (isRam(pos)) {
       buf[ramOfft(pos)] = value;
+      return;
     }
     return writeRegion(pos, value, 1);
   }
@@ -130,6 +137,7 @@ template <int size> struct Memory {
     // TODO
     if (isRam(pos)) {
       *reinterpret_cast<u32 *>(&buf[ramOfft(pos)]) = value;
+      return;
     }
     return writeRegion(pos, value, 4);
   }
@@ -146,6 +154,7 @@ template <int size> struct Memory {
     // TODO
     if (isRam(pos)) {
       *reinterpret_cast<u16 *>(&buf[ramOfft(pos)]) = value;
+      return;
     }
     return writeRegion(pos, value, 2);
   }
@@ -162,6 +171,7 @@ template <int size> struct Memory {
     // TODO
     if (isRam(pos)) {
       buf[ramOfft(pos)] = value;
+      return;
     }
     return writeRegion(pos, value, 1);
   }
@@ -189,6 +199,20 @@ template <int size> struct Memory {
     }
   }
 
+  void loadBinary(const char *path, u32 pos) {
+    u32 real_pos = ramOfft(pos);
+    printf("binary loaded at %x (%x) rambase = %x\n", real_pos, pos, rambase);
+    FILE *binary = fopen(path, "r");
+    if (binary == nullptr) {
+      printf("failed to open binary: %s\n", path);
+      exit(1);
+    }
+    FileReader fr(binary);
+    u64 file_size = fr.getFileSize();
+    // printf("file size: %ld\n", file_size);
+    u32 written = fr.read(buf + real_pos, file_size);
+    assert(written == file_size);
+  }
   // template <typename T> T readLE(u64 pos) {
   //   T tmp;
   //   pos = pos % size;

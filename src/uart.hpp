@@ -34,15 +34,15 @@ struct PL011 {
   union UARTFR {
     u32 back;
     struct {
-      u32 cts : 1;
-      u32 dsr : 1;
-      u32 dcd : 1;
-      u32 busy : 1;
-      u32 rxfe : 1;
-      u32 txff : 1;
-      u32 rxff : 1;
-      u32 txfe : 1;
-      u32 ri : 1;
+      u32 cts : 1 = 0;
+      u32 dsr : 1 = 0;
+      u32 dcd : 1 = 0;
+      u32 busy : 1 = 0;
+      u32 rxfe : 1 = 0;
+      u32 txff : 1 = 0;
+      u32 rxff : 1 = 0;
+      u32 txfe : 1 = 0;
+      u32 ri : 1 = 0;
     } f;
   };
 
@@ -53,7 +53,7 @@ struct PL011 {
   bool tx_full = false;
   bool rx_full = false;
   bool tx_empty = true;
-  bool tx_enabled = false;
+  bool tx_enabled = true;
   bool rx_enabled = false;
   bool busy = false;
   u8 tx_push_idx = 31;

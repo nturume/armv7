@@ -26,7 +26,7 @@ DEPS := $(OBJS:.o=.d)
 INC_DIRS := $(shell find $(SRC_DIRS) -type d)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 CPPFLAGS := $(INC_FLAGS) -MMD -MP
-CC := g++
+CXX := g++
 
 $(TARGET_EXEC): $(OBJS)
 	@echo "Linking $@"
@@ -35,7 +35,7 @@ $(TARGET_EXEC): $(OBJS)
 $(BUILD_DIR)/%.cpp.o: %.cpp $(HEADERS) 
 	@echo "Compiling $<"
 	$(V_AT)mkdir -p $(dir $@)
-	$(V_AT)$(CC) -g $(CPPFLAGS) -c $< -o $@ $(CFLAGS)
+	$(V_AT)$(CXX) -g $(CPPFLAGS) -c $< -o $@ $(CFLAGS)
 
 $(BUILD_DIR)/elf: $(ASM) $(SRC_DIRS)/l.ld
 	$(V_AT)arm-none-eabi-as $(SRC_DIRS)/prog.s -o $(BUILD_DIR)/a.out
