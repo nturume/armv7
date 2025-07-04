@@ -1,7 +1,7 @@
 ENTRY(_start)
 
 SECTIONS {
-  . = 0;
+  . = 0x0000000;
   .text.reset : {
     *(.text.reset)
   }

@@ -3,6 +3,7 @@
 #include "assert.h"
 #include "mem.hpp"
 #include "stuff.hpp"
+#include "decoder.hpp"
 #include <cmath>
 #include <cstdio>
 
@@ -30,42 +31,6 @@ struct Cpu {
     u32 back;
   };
 
-  union SCTLR {
-    struct {
-      u32 m : 1;
-      u32 a : 1;
-      u32 c : 1;
-      u32 _1 : 2 = 0b11;
-      u32 cp15ben : 1;
-      u32 _9 : 1 = 1;
-      u32 b : 1;
-      u32 _2 : 2 = 0;
-      u32 sw : 1;
-      u32 z : 1;
-      u32 i : 1;
-      u32 v : 1;
-      u32 rr : 1;
-      u32 _3 : 1 = 0;
-      u32 _4 : 1 = 1;
-      u32 ha : 1;
-      u32 _5 : 1 = 1;
-      u32 wxn : 1;
-      u32 uwxn : 1;
-      u32 fi : 1;
-      u32 u : 1 = 1;
-      u32 _6 : 1 = 1;
-      u32 ve : 1;
-      u32 ee : 1;
-      u32 _7 : 1 = 0;
-      u32 nmfi : 1;
-      u32 tre : 1;
-      u32 afe : 1;
-      u32 te : 1;
-      u32 _8 : 1 = 0;
-    } b;
-    u32 back;
-  };
-
   union SCR {
     struct {
       u32 ns : 1;
@@ -83,7 +48,6 @@ struct Cpu {
   };
 
   APSR apsr = {};
-  SCTLR sctrl = {};
   SCR scr = {};
   // regs
   u32 regs[15][32] = {0};
@@ -101,6 +65,15 @@ struct Cpu {
   Memory mem;
 
   u32 cur;
+
+  InstrSet instrset = InstrSet::arm;
+
+  //===========to remove
+  u32 user_tls = 0;
+
+  InstrSet currInstrSet() { return instrset; }
+
+  void selectInstrSet(InstrSet i) { instrset = i; }
 
   inline bool cnd() {
     u8 cond = cur >> 28;
@@ -291,7 +264,7 @@ struct Cpu {
   }
 
   u32 excVectorBase() {
-    if (sctrl.b.v) {
+    if (mem.mmu.sctrl.b.v) {
       return 0xffff0000;
     }
     if (hasSecurityExt())
@@ -305,7 +278,7 @@ struct Cpu {
 
   void cpsrWriteByInstr(u32 value, u8 bytemask, bool is_excpt_return) {
     bool privileged = curModeIsntUser();
-    bool nmfi = sctrl.b.nmfi;
+    bool nmfi = mem.mmu.sctrl.b.nmfi;
     u32 _cpsr;
 
     if ((bytemask >> 3) & 1) {
@@ -401,8 +374,9 @@ struct Cpu {
     return ptr;
   }
 
-  inline u32 branchWritePc(u32 ptr) {
-    return branchTo(ptr & (0xffffffff << 2));
+  inline u32 branchWritePc(u32 ptr) { 
+    if(currInstrSet()==InstrSet::arm) return branchTo(ptr & (0xfffffffc)); 
+    return branchTo(ptr&0xfffffffe);
   }
 
   inline u32 sp() { return r(13); }
@@ -415,22 +389,36 @@ struct Cpu {
 
   inline u32 pc() { return r(15); }
 
-  inline u32 pcReal() { return progcounter; }
-  inline void pcReal(u32 v) { branchTo(v); }
-
   inline u32 bxWritePc(u32 ptr) {
-    if ((ptr & 0b11) == 0) {
-      return branchTo(ptr);
+    if(ptr&1) {
+      selectInstrSet(InstrSet::thumb);
+      return branchTo(ptr&0xfffffffe);
+    } else if((ptr&0b10)==0) {
+      selectInstrSet(InstrSet::arm);
+      return branchTo(ptr&0xfffffffc);
     }
+    // if ((ptr & 0b11) == 0) {
+    //   return branchTo(ptr);
+    // }
     printf("%u %x\n", ptr, ptr);
     assert(true ? false : "bad address" == nullptr);
   }
 
-  inline u32 aluWritePc(u32 ptr) { return bxWritePc(ptr); }
+  inline u32 aluWritePc(u32 ptr) {
+    if (currInstrSet() == InstrSet::arm) {
+      return bxWritePc(ptr);
+    }
+    return branchWritePc(ptr);
+  }
 
-  inline u32 loadWritePc(u32 ptr) { return bxWritePc(ptr); }
+  inline u32 loadWritePc(u32 ptr) {
+     return bxWritePc(ptr);
+   }
 
-  inline u32 expandImm(u16 imm12) { return Arith::expandImmC(imm12).v.u; }
+  inline u32 expandImm(u16 imm12) { return Arith::expandImmC(imm12, c()).v.u; }
+
+  inline u32 pcReal() { return progcounter; }
+  inline void pcReal(u32 v) { loadWritePc(v); }
 
   inline u8 n() { return apsr.b.n; }
 
@@ -465,54 +453,52 @@ struct Cpu {
              real);
       printf("expected r%d to be 0b%b but found 0b%b\n", pos & 0xf, value,
              real);
-      printf("r1 0b%b r2 0b%b\n", r(1), r(2));
-      printf("r1 0x%x r2 0x%x\n", r(1), r(2));
-      abort();
+      // abort();
     }
   }
 
   void expectV(bool value) {
     if (v() != value) {
       printf("Expected V = %d but found %d\n", value, v());
-      abort();
+      // abort();
     }
   }
   void expectC(bool value) {
     if (c() != value) {
       printf("Expected C = %d but found %d\n", value, c());
-      abort();
+      // abort();
     }
   }
   void expectZ(bool value) {
     if (z() != value) {
       printf("Expected Z = %d but found %d\n", value, z());
-      abort();
+      // abort();
     }
   }
   void expectQ(bool value) {
     if (q() != value) {
       printf("Expected Q = %d but found %d\n", value, q());
-      abort();
+      // abort();
     }
   }
   void expectN(bool value) {
     if (n() != value) {
       printf("Expected N = %d but found %d\n", value, n());
-      abort();
+      // abort();
     }
   }
 
   void expectG(u8 value) {
     if (ge() != value) {
       printf("Expected GE = %b but found %b\n", value & 0b1111, ge());
-      abort();
+      // abort();
     }
   }
 
   void printRegisters() {
     printf("=========regs==========\n");
     for (u32 i = 0; i < 16; i++) {
-      printf("r%d = %d %u %x %b\n", i, r(i), r(i), r(i), r(i));
+      printf("r%d =  %x\n",i, i<15? r(i): pcReal());
     }
     printf("=========flags=========\n");
     printf("n: %d, z: %d, c: %d, v: %d, q: %d\n", (u32)apsr.b.n, (u32)apsr.b.z,
@@ -556,6 +542,7 @@ struct Cpu {
   inline bool aligned16(u32 a) { return (a & 0b1) == 0; }
 
   u32 reset() {
+    // mem.cpu = this;
     cpsr(u8(Mode::supervisor));
     apsr.b.e = 0;
     apsr.b.i = 1;
@@ -578,8 +565,8 @@ struct Cpu {
     apsr.b.i = 1;
     apsr.b.it = apsr.b.it2 = 0;
     apsr.b.j = 0;
-    apsr.b.t = sctrl.b.te;
-    apsr.b.e = sctrl.b.ee;
+    apsr.b.t = mem.mmu.sctrl.b.te;
+    apsr.b.e = mem.mmu.sctrl.b.ee;
     return branchTo(excVectorBase() + 4);
   }
 
@@ -592,8 +579,8 @@ struct Cpu {
     apsr.b.i = 1;
     apsr.b.it = apsr.b.it2 = 0;
     apsr.b.j = 0;
-    apsr.b.t = sctrl.b.te;
-    apsr.b.e = sctrl.b.ee;
+    apsr.b.t = mem.mmu.sctrl.b.te;
+    apsr.b.e = mem.mmu.sctrl.b.ee;
     return branchTo(excVectorBase() + 8);
   }
 
@@ -611,8 +598,8 @@ struct Cpu {
     apsr.b.i = 1;
     apsr.b.it = apsr.b.it2 = 0;
     apsr.b.j = 0;
-    apsr.b.t = sctrl.b.te;
-    apsr.b.e = sctrl.b.ee;
+    apsr.b.t = mem.mmu.sctrl.b.te;
+    apsr.b.e = mem.mmu.sctrl.b.ee;
     return branchTo(excVectorBase() + 12);
   }
 
@@ -625,9 +612,119 @@ struct Cpu {
     apsr.b.i = 1;
     apsr.b.it = apsr.b.it2 = 0;
     apsr.b.j = 0;
-    apsr.b.t = sctrl.b.te;
-    apsr.b.e = sctrl.b.ee;
+    apsr.b.t = mem.mmu.sctrl.b.te;
+    apsr.b.e = mem.mmu.sctrl.b.ee;
     return branchTo(excVectorBase() + 16);
+  }
+
+  void cp15SendWord() {
+    u8 crm = cur & 0xf;
+    u8 opc2 = (cur >> 5) & 7;
+    u8 t = (cur >> 12) & 0xf;
+    u8 crn = (cur >> 16) & 0xf;
+    u8 opc1 = (cur >> 21) & 7;
+
+    // printf("mcr p15 %d, r%d, c%d, c%d, %d\n", opc1, t, crn, crm, opc2);
+
+    if (crn == 2 and opc1 == 0 and crm == 0 and opc2 == 2) {
+      mem.mmu.ttbcr.back = r(t);
+    } else if (crn == 2 and opc1 == 0 and crm == 0 and opc2 == 0) {
+      mem.mmu.ttbr0.back = r(t);
+    } else if (crn == 2 and opc1 == 0 and crm == 0 and opc2 == 1) {
+      mem.mmu.ttbr1.back = r(t);
+    } else if (crn == 1 and opc1 == 0 and crm == 0 and opc2 == 0) {
+      mem.mmu.setsctrl(r(t));
+    } else if (crn == 7 and opc1 == 0 and crm == 14 and opc2 == 2) {
+    } else if (crn == 7 and opc1 == 0 and crm == 10 and opc2 == 5) {
+    } else if (crn == 7 and opc1 == 0 and crm == 10 and opc2 == 4) {
+    } else if (crn == 0 and opc1 == 2 and crm == 0 and opc2 == 0) {
+    } else if (crn == 7 and opc1 == 0 and crm == 5 and opc2 == 0) {
+    } else if (crn == 7 and opc1 == 0 and crm == 5 and opc2 == 6) {
+    } else if (crn == 10 and opc1 == 0 and crm == 2 and opc2 == 0) {
+    } else if (crn == 10 and opc1 == 0 and crm == 2 and opc2 == 1) {
+    } else if (crn == 7 and opc1 == 0 and crm == 5 and opc2 == 4) {
+    } else if (crn == 7 and opc1 == 0 and crm == 10 and opc2 == 1) {
+    } else if (crn == 7 and opc1 == 0 and crm == 14 and opc2 == 1) {
+    } else if (crn == 7 and opc1 == 0 and crm == 11 and opc2 == 1) {
+    } else if (crn == 7 and opc1 == 0 and crm == 5 and opc2 == 1) {
+    }
+
+    else if (crn == 9 and opc1 == 0 and crm == 12 and opc2 == 0) {
+    } else if (crn == 9 and opc1 == 0 and crm == 12 and opc2 == 2) {
+    } else if (crn == 9 and opc1 == 0 and crm == 14 and opc2 == 2) {
+    } else if (crn == 13 and opc1 == 0 and crm == 0 and opc2 == 1) {
+    } else if (crn == 8 and opc1 == 0 and crm == 7 and opc2 == 1) {
+    } else if (crn == 8 and opc1 == 0 and crm == 7 and opc2 == 2) {
+    } else if (crn == 8 and opc1 == 0 and crm == 7 and opc2 == 0) {
+    } else if (crn == 3 and opc1 == 0 and crm == 0 and opc2 == 0) {
+      // TODO
+    } else
+      assert("write unimplemented cp15 reg\n" == nullptr);
+  }
+
+  void cp15getWord() {
+    u8 crm = cur & 0xf;
+    u8 opc2 = (cur >> 5) & 7;
+    u8 t = (cur >> 12) & 0xf;
+    u8 crn = (cur >> 16) & 0xf;
+    u8 opc1 = (cur >> 21) & 7;
+
+    // printf("mrc p15 %d, r%d, c%d, c%d, %d\n", opc1, t, crn, crm, opc2);
+
+    if (crn == 13 and opc1 == 0 and crm == 0 and opc2 == 3) {
+      r(t, user_tls);
+    } else if (crn == 2 and opc1 == 0 and crm == 0 and opc2 == 2) {
+      r(t, mem.mmu.ttbcr.back);
+    } else if (crn == 2 and opc1 == 0 and crm == 0 and opc2 == 0) {
+      r(t, mem.mmu.ttbr0.back);
+    } else if (crn == 2 and opc1 == 0 and crm == 0 and opc2 == 1) {
+      r(t, mem.mmu.ttbr1.back);
+    } else if (crn == 1 and opc1 == 0 and crm == 0 and opc2 == 0) {
+      r(t, mem.mmu.sctrl.back);
+    } else if (crn == 0 and opc1 == 0 and crm == 0 and opc2 == 0) {
+      r(t, 0x410fc090);
+    } else if (crn == 0 and opc1 == 0 and crm == 1 and opc2 == 4) {
+      r(t, 0x100103);
+    } else if (crn == 0 and opc1 == 0 and crm == 1 and opc2 == 5) {
+      r(t, 0x20000000);
+    } else if (crn == 0 and opc1 == 1 and crm == 0 and opc2 == 1) {
+      r(t, 0x9000003);
+    } else if (crn == 0 and opc1 == 0 and crm == 0 and opc2 == 1) {
+      r(t, 0x80038003);
+    } else if (crn == 0 and opc1 == 1 and crm == 0 and opc2 == 0) {
+      r(t, 0xe00fe019);
+    } else
+      assert("read unimplemented cp15 reg\n" == nullptr);
+  }
+
+  inline u32 mcr() {
+    if (cnd()) {
+      u8 coproc = (cur >> 8) & 0xf;
+      switch (coproc) {
+      case 15:
+        cp15SendWord();
+        break;
+      default:
+        printf("unknown coproc: %d\n", coproc);
+        assert(false);
+      }
+    }
+    return nxt();
+  }
+
+  inline u32 mrc() {
+    if (cnd()) {
+      u8 coproc = (cur >> 8) & 0xf;
+      switch (coproc) {
+      case 15:
+        cp15getWord();
+        break;
+      default:
+        printf("unknown coproc: %d\n", coproc);
+        assert(false);
+      }
+    }
+    return nxt();
   }
 
   inline u32 cps() {
@@ -791,16 +888,35 @@ struct Cpu {
     return nxt();
   }
 
+  void doSysCall();
+
   inline u32 svc() {
     if (cnd()) {
-      return callSuperVisor(cur);
+      doSysCall();
+      //ireturn callSuperVisor(cur);
+    }
+    return nxt();
+  }
+
+  inline u32 blxReg() {
+    if(cnd()) {
+      u32 target = r(cur);
+      r(14, pc()-4);
+      u32 ptr = bxWritePc(target);
+      if(currInstrSet()!=InstrSet::arm){
+        printf("ptr: %x target: %x\n", ptr, target);
+      assert(currInstrSet()==InstrSet::arm);
+      }
+      return ptr;
     }
     return nxt();
   }
 
   inline u32 bx() {
     if (cnd()) {
-      return bxWritePc(r(cur));
+      u32 ptr = bxWritePc(r(cur));
+      assert(currInstrSet()==InstrSet::arm);
+      return ptr;
     }
     return nxt();
   }
@@ -833,7 +949,7 @@ struct Cpu {
       u32 address = r(n) - 4 * bitcount + 4;
       u32 newpc;
       bool setpc = false;
-      for (u8 i = 0; i < 15 and registers; i++) {
+      for (u8 i = 0; i < 15; i++) {
         if (registers & 1) {
           r(i, mem.a32a(address));
           address += 4;
@@ -861,7 +977,7 @@ struct Cpu {
       bool wback = cbit(21);
       u8 bitcount = bitcount16(registers);
       u32 address = r(n) - 4 * bitcount + 4;
-      for (u8 i = 0; i < 15 and registers; i++) {
+      for (u8 i = 0; i < 15; i++) {
         if (registers & 1) {
           mem.a32a(address, r(i));
           address += 4;
@@ -887,7 +1003,7 @@ struct Cpu {
       u32 address = r(n) - 4 * bitcount;
       u32 newpc;
       bool setpc = false;
-      for (u8 i = 0; i < 15 and registers; i++) {
+      for (u8 i = 0; i < 15; i++) {
         if (registers & 1) {
           r(i, mem.a32a(address));
           address += 4;
@@ -915,7 +1031,7 @@ struct Cpu {
       bool wback = cbit(21);
       u8 bitcount = bitcount16(registers);
       u32 address = r(n) - 4 * bitcount;
-      for (u8 i = 0; i < 15 and registers; i++) {
+      for (u8 i = 0; i < 15; i++) {
         if (registers & 1) {
           r(i, mem.a32a(address));
           address += 4;
@@ -941,7 +1057,7 @@ struct Cpu {
       u32 address = r(n) + 4;
       u32 newpc;
       bool setpc = false;
-      for (u8 i = 0; i < 15 and registers; i++) {
+      for (u8 i = 0; i < 15; i++) {
         if (registers & 1) {
           r(i, mem.a32a(address));
           address += 4;
@@ -969,7 +1085,7 @@ struct Cpu {
       bool wback = cbit(21);
       u8 bitcount = bitcount16(registers);
       u32 address = r(n) + 4;
-      for (u8 i = 0; i < 15 and registers; i++) {
+      for (u8 i = 0; i < 15; i++) {
         if (registers & 1) {
           r(i, mem.a32a(address));
           address += 4;
@@ -994,7 +1110,7 @@ struct Cpu {
       u32 address = r(n);
       bool setpc = false;
       u32 newpc;
-      for (u8 i = 0; i < 15 and registers; i++) {
+      for (u8 i = 0; i < 15; i++) {
         if (registers & 1) {
           r(i, mem.a32a(address));
           address += 4;
@@ -1022,7 +1138,7 @@ struct Cpu {
       u32 address = sp();
       bool setpc = false;
       u32 newpc;
-      for (u8 i = 0; i < 15 and registers; i++) {
+      for (u8 i = 0; i < 15; i++) {
         if (registers & 1) {
           r(i, mem.a32a(address));
           address += 4;
@@ -1048,7 +1164,7 @@ struct Cpu {
       u8 n = cur >> 16;
       bool wback = cbit(21);
       u32 address = r(n);
-      for (u8 i = 0; i < 15 and registers; i++) {
+      for (u8 i = 0; i < 15; i++) {
         if (registers & 1) {
           mem.a32a(address, r(i));
           address += 4;
@@ -1071,7 +1187,7 @@ struct Cpu {
       u16 registers = cur;
       u32 address = sp() - 4 * bitcount16(registers);
       u32 sp_cpy = address;
-      for (u8 i = 0; i < 15 and registers; i++) {
+      for (u8 i = 0; i < 15; i++) {
         if (registers & 1) {
           mem.a32a(address, r(i));
           address += 4;
@@ -1273,6 +1389,7 @@ struct Cpu {
       auto offset = Arith::shiftC(r(m), st.t, st.n, c());
       u32 offset_addr = add ? r(n) + offset.u() : r(n) - offset.u();
       u32 address = index ? offset_addr : r(n);
+      // printf(" @@@@@@@@ ADDRESS: %x\n", address);
       u32 data = mem.a32u(address);
       if (wback) {
         r(n, offset_addr);
@@ -1433,7 +1550,7 @@ struct Cpu {
   inline u32 ldrImm() {
     if (cnd()) {
       u8 t = (cur >> 12) & 0xf;
-      u8 n = cur >> 16;
+      u8 n = (cur >> 16)&0xf;
       bool index = cbit(24);
       bool add = cbit(23);
       bool wback = !index or cbit(21);
@@ -1749,7 +1866,7 @@ struct Cpu {
     if (cnd()) {
       u8 d = (cur >> 12) & 0xf;
       bool setflags = (cur & (1 << 20)) > 0;
-      auto imm = Arith::expandImmC(u16(cur));
+      auto imm = Arith::expandImmC(u16(cur), c());
       u32 res = ~imm.u();
       if (d == 15)
         return aluWritePc(res);
@@ -1952,9 +2069,9 @@ struct Cpu {
 
   inline u32 addReg() {
     if (cnd()) {
-      u8 m = cur;
+      u8 m = (cur) & 0xf;
       u8 d = (cur >> 12) & 0xf;
-      u8 _n = cur >> 16;
+      u8 _n = (cur >> 16) & 0xf;
       bool setflags = (cur & (1 << 20)) > 0;
       Arith::Is s = Arith::decodeImmShift((cur >> 5), (cur >> 7));
       Arith::Res shifted = Arith::shiftC(r(m), s.t, s.n, c());
@@ -2280,8 +2397,7 @@ struct Cpu {
     if (cnd()) {
       u32 imm32 = expandImm((u16)cur);
       u32 d = (cur >> 12) & 0xf;
-      u32 res =
-          (cur & ((1) << 23)) ? align4(pc()) + imm32 : align4(pc()) - imm32;
+      u32 res = cbit(23) ? align4(pc()) + imm32 : align4(pc()) - imm32;
       if (d == 15)
         return aluWritePc(res);
       r(d, res);
@@ -2294,7 +2410,7 @@ struct Cpu {
       u8 d = (cur >> 12) & 0xf;
       u8 _n = cur >> 16;
       bool setflags = (cur & (1 << 20)) > 0;
-      Arith::Res shift = Arith::expandImmC(u16(cur));
+      Arith::Res shift = Arith::expandImmC(u16(cur), c());
       u32 res = r(_n) & shift.u();
       if (d == 15)
         return aluWritePc(res);
@@ -2353,7 +2469,7 @@ struct Cpu {
       u8 d = (cur >> 12) & 0xf;
       u8 _n = cur >> 16;
       bool setflags = (cur & (1 << 20)) > 0;
-      Arith::Res shift = Arith::expandImmC(u16(cur));
+      Arith::Res shift = Arith::expandImmC(u16(cur), c());
       u32 res = r(_n) & ~shift.u();
       if (d == 15)
         return aluWritePc(res);
@@ -2412,7 +2528,7 @@ struct Cpu {
       u8 d = (cur >> 12) & 0xf;
       u8 _n = cur >> 16;
       bool setflags = (cur & (1 << 20)) > 0;
-      Arith::Res shift = Arith::expandImmC(u16(cur));
+      Arith::Res shift = Arith::expandImmC(u16(cur), c());
       u32 res = r(_n) ^ shift.u();
       if (d == 15)
         return aluWritePc(res);
@@ -2471,7 +2587,7 @@ struct Cpu {
       u8 d = (cur >> 12) & 0xf;
       u8 _n = cur >> 16;
       bool setflags = (cur & (1 << 20)) > 0;
-      Arith::Res shift = Arith::expandImmC(u16(cur));
+      Arith::Res shift = Arith::expandImmC(u16(cur), c());
       u32 res = r(_n) | shift.u();
       if (d == 15)
         return aluWritePc(res);
@@ -2528,7 +2644,7 @@ struct Cpu {
   inline u32 teqImm() {
     if (cnd()) {
       u8 _n = cur >> 16;
-      Arith::Res shift = Arith::expandImmC(u16(cur));
+      Arith::Res shift = Arith::expandImmC(u16(cur), c());
       u32 res = r(_n) ^ shift.u();
       n((res & NEG) > 0);
       z(res == 0);
@@ -2568,7 +2684,7 @@ struct Cpu {
   inline u32 tstImm() {
     if (cnd()) {
       u8 _n = cur >> 16;
-      Arith::Res shift = Arith::expandImmC(u16(cur));
+      Arith::Res shift = Arith::expandImmC(u16(cur), c());
       u32 res = r(_n) & shift.u();
       n((res & NEG) > 0);
       z(res == 0);
@@ -2610,7 +2726,8 @@ struct Cpu {
       u8 d = (cur >> 12) & 0xf;
       u8 m = cur;
       bool setflags = (cur & (1 << 20)) > 0;
-      auto shift = Arith::shiftC(r(m), 0b10, cur >> 7, c());
+      auto sht = Arith::decodeImmShift(2, cur >> 7);
+      auto shift = Arith::shiftC(r(m), sht.t, sht.n, c());
       if (d == 15)
         return aluWritePc(shift.u());
       r(d, shift.u());
@@ -2645,7 +2762,8 @@ struct Cpu {
       u8 d = (cur >> 12) & 0xf;
       u8 m = cur;
       bool setflags = (cur & (1 << 20)) > 0;
-      auto shift = Arith::shiftC(r(m), 0, cur >> 7, c());
+      auto sht = Arith::decodeImmShift(0, cur >> 7);
+      auto shift = Arith::shiftC(r(m), sht.t, sht.n, c());
       if (d == 15)
         return aluWritePc(shift.u());
       r(d, shift.u());
@@ -2680,7 +2798,8 @@ struct Cpu {
       u8 d = (cur >> 12) & 0xf;
       u8 m = cur;
       bool setflags = (cur & (1 << 20)) > 0;
-      auto shift = Arith::shiftC(r(m), 1, cur >> 7, c());
+      auto sht = Arith::decodeImmShift(1, cur >> 7);
+      auto shift = Arith::shiftC(r(m), sht.t, sht.n, c());
       if (d == 15)
         return aluWritePc(shift.u());
       r(d, shift.u());
@@ -2766,7 +2885,7 @@ struct Cpu {
   inline u32 movImm() {
     if (cnd()) {
       u8 d = (cur >> 12) & 0xf;
-      auto imm = Arith::expandImmC(cur);
+      auto imm = Arith::expandImmC(cur, c());
       bool setflags = (cur & (1 << 20)) > 0;
       if (d == 15)
         return aluWritePc(imm.u());
@@ -2797,8 +2916,9 @@ struct Cpu {
       u8 d = (cur >> 12) & 0xf;
       bool setflags = (cur & (1 << 20)) > 0;
       u32 res = r(m);
-      if (d == 15)
+      if (d == 15) {
         return aluWritePc(res);
+      }
       r(d, res);
       if (setflags) {
         n((res & NEG) > 0);

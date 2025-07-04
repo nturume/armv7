@@ -1207,6 +1207,975 @@ Instr decodeA(u32 instr) {
   return res;
 }
 
+static bool is32bit(u16 word) {
+  if ((word & 0x1800) == 0)
+    return false;
+  return (word & 0xe000) == 0xe000;
+}
+
+Instr shiftImm16(u16 word) {
+  u8 opcode = (word >> 9) & 0b11111;
+  switch (opcode) {
+  case 0b1100:
+    return Instr::addregT1;
+  case 0b1101:
+    return Instr::subregT1;
+  case 0b1110:
+    return Instr::addimmT1;
+  case 0b1111:
+    return Instr::subimmT1;
+  default:
+    switch (opcode >> 2) {
+    case 0:
+      return Instr::lslimmT1;
+    case 1:
+      return Instr::lsrimmT1;
+    case 2:
+      return Instr::asrimmT1;
+    case 4:
+      return Instr::movimmT1;
+    case 5:
+      return Instr::cmpimmT1;
+    case 6:
+      return Instr::addimmT2;
+    case 7:
+      return Instr::subimmT2;
+    }
+  }
+  return Instr::undefined;
+}
+
+Instr dataProc16(u16 word) {
+  u8 opcode = (word >> 6) & 0b1111;
+  switch (opcode) {
+  case 0:
+    return Instr::andregT1;
+  case 1:
+    return Instr::eorregT1;
+  case 0b10:
+    return Instr::lslregT1;
+  case 0b11:
+    return Instr::lsrregT1;
+  case 0b100:
+    return Instr::asrregT1;
+  case 0b101:
+    return Instr::adcregT1;
+  case 0b110:
+    return Instr::sbcregT1;
+  case 0b111:
+    return Instr::rorregT1;
+  case 0b1000:
+    return Instr::tstregT1;
+  case 0b1001:
+    return Instr::rsbimmT1;
+  case 0b1010:
+    return Instr::cmpregT1;
+  case 0b1011:
+    return Instr::cmnregT1;
+  case 0b1100:
+    return Instr::orrregT1;
+  case 0b1101:
+    return Instr::mulT1;
+  case 0b1110:
+    return Instr::bicregT1;
+  case 0b1111:
+    return Instr::mvnregT1;
+  };
+  return Instr::undefined;
+}
+
+Instr specDataBranch(u16 word) {
+  u8 opcode = (word >> 6) & 0b1111;
+  if (opcode == 0) {
+    return Instr::addregT1;
+  }
+  if (opcode == 0b1)
+    return Instr::addregT2;
+  if (opcode & 0b10)
+    return Instr::addregT2;
+  if ((opcode & 0b1100) == 0b100)
+    return Instr::cmpregT2;
+  if (opcode == 0b1000 or opcode == 0b1001)
+    return Instr::movregT1;
+  if ((opcode >> 1) == 0b101)
+    return Instr::movregT1;
+  if ((opcode >> 1) == 0b110)
+    return Instr::bxT1;
+  if ((opcode >> 1) == 0b111)
+    return Instr::blxT1;
+  return Instr::undefined;
+}
+
+Instr loadStoreSingle16(u16 word) {
+  switch (word >> 9) {
+  case 0b101000:
+    return Instr::strregT1;
+  case 0b101001:
+    return Instr::strhregT1;
+  case 0b101010:
+    return Instr::strbregT1;
+  case 0b101011:
+    return Instr::ldrsbregT1;
+  case 0b101100:
+    return Instr::ldrregT1;
+  case 0b101101:
+    return Instr::ldrhregT1;
+  case 0b101110:
+    return Instr::ldrbregT1;
+  case 0b101111:
+    return Instr::ldrshregT1;
+  default:
+    switch (word >> 11) {
+    case 0b1100:
+      return Instr::strimmT1;
+    case 0b1101:
+      return Instr::ldrimmT1;
+    case 0b1110:
+      return Instr::strbimmT1;
+    case 0b1111:
+      return Instr::ldrbimmT1;
+    case 0b10000:
+      return Instr::strhimmT1;
+    case 0b10001:
+      return Instr::ldrhimmT1;
+    case 0b10010:
+      return Instr::strimmT2;
+    case 0b10011:
+      return Instr::ldrimmT2;
+    }
+  }
+  return Instr::undefined;
+}
+
+Instr misc16(u16 word) {
+  u8 opcode = (word >> 5) & 0x7f;
+  if ((opcode >> 3) == 0b1111) {
+    if (word & 0xf) {
+      return Instr::itT1;
+    } else {
+      switch ((word >> 4) & 0xf) {
+      case 0:
+        return Instr::nopT1;
+      case 1:
+        return Instr::yieldT1;
+      case 2:
+        return Instr::wfeT1;
+      case 3:
+        return Instr::wfiT1;
+      case 4:
+        return Instr::sevT1;
+      }
+    }
+  } else if (opcode == 0b110011) {
+    return Instr::cps;
+  } else if (opcode == 0b110010) {
+    return Instr::setendT1;
+  } else if (opcode >> 3 == 0b1110) {
+    return Instr::bkptT1;
+  } else if (opcode >> 2 == 0) {
+    return Instr::addspimmT2;
+  } else if (opcode >> 2 == 1) {
+    return Instr::subspimmT1;
+  } else if (opcode >> 1 == 0b001000) {
+    return Instr::sxthT1;
+  } else if (opcode >> 1 == 0b001001) {
+    return Instr::sxtbT1;
+  } else if (opcode >> 1 == 0b001010) {
+    return Instr::uxthT1;
+  } else if (opcode >> 1 == 0b001011) {
+    return Instr::uxtbT1;
+  } else if (opcode >> 1 == 0b101000) {
+    return Instr::revT1;
+  } else if (opcode >> 1 == 0b101001) {
+    return Instr::rev16T1;
+  } else if (opcode >> 1 == 0b101011) {
+    return Instr::revshT1;
+  } else if (opcode >> 4 == 0b010) {
+    return Instr::pushT1;
+  } else if (opcode >> 4 == 0b110) {
+    return Instr::popT1;
+  } else if ((opcode >> 3) == 0b0001 or //
+             (opcode >> 3) == 0b0011 or //
+             (opcode >> 3) == 0b1001 or //
+             (opcode >> 3) == 0b1011) {
+    return Instr::cbzT1;
+  }
+  return Instr::undefined;
+}
+
+Instr condBranch16(u16 word) {
+  u8 opcode = (word >> 8) & 0xf;
+  switch (opcode) {
+  case 0b1110:
+    return Instr::undefined;
+  case 0b1111:
+    return Instr::svcT1;
+  default:
+    return Instr::bT1;
+  }
+  return Instr::undefined;
+}
+
+Instr T32(u32 word) { return Instr::undefined; }
+
+Instr T16(u16 word) {
+  u8 opcode = word >> 10;
+  if ((opcode >> 7) == 0) {
+    return shiftImm16(word);
+  }
+  if (opcode == 0b10000) {
+    return dataProc16(word);
+  }
+  if (opcode == 0b10001) {
+    return specDataBranch(word);
+  }
+  if ((opcode >> 1) == 0b1001) {
+    return Instr::ldrlitT1;
+  }
+  if ((opcode >> 1) == 0b10100) {
+    return Instr::adrT1;
+  }
+  if ((opcode >> 1) == 0b10101) {
+    return Instr::addspimmT1;
+  }
+  if ((opcode >> 1) == 0b11000) {
+    return Instr::stmT1;
+  }
+  if ((opcode >> 1) == 0b11001) {
+    return Instr::ldmT1;
+  }
+  if ((opcode >> 1) == 0b11100) {
+    return Instr::bT2;
+  }
+  if ((opcode >> 2) == 0b101)
+    return loadStoreSingle16(word);
+  if ((opcode >> 3) == 0b11)
+    return loadStoreSingle16(word);
+  if ((opcode >> 3) == 0b100)
+    return loadStoreSingle16(word);
+  if ((opcode >> 2) == 0b1011)
+    return misc16(word);
+  if ((opcode >> 2) == 0b1101)
+    return condBranch16(word);
+  return Instr::undefined;
+}
+
+Instr decodeT(u32 word) {
+  if (is32bit(word)) {
+    printf("THUMB32\n");
+  } else {
+    printf("THUMB16\n");
+    return T16(word);
+  }
+  return Instr::undefined;
+}
+
+int printInstr(Instr instr) {
+  switch (instr) {
+  case Instr::cpsT1:
+    return printf("Instr::cpsT1\n");
+  case Instr::addspimmT2:
+    return printf("Instr::addspimmT2\n");
+  case Instr::subspimmT1:
+    return printf("Instr::subspimmT1\n");
+  case Instr::sxthT1:
+    return printf("Instr::sxthT1\n");
+  case Instr::sxtbT1:
+    return printf("Instr::sxtbT1\n");
+  case Instr::uxthT1:
+    return printf("Instr::uxthT1\n");
+  case Instr::uxtbT1:
+    return printf("Instr::uxtbT1\n");
+  case Instr::revT1:
+    return printf("Instr::revT1\n");
+  case Instr::rev16T1:
+    return printf("Instr::rev16T1\n");
+  case Instr::revshT1:
+    return printf("Instr::revshT1\n");
+  case Instr::pushT1:
+    return printf("Instr::pushT1\n");
+  case Instr::popT1:
+    return printf("Instr::popT1\n");
+  case Instr::cbzT1:
+    return printf("Instr::cbzT1\n");
+  case Instr::bkptT1:
+    return printf("Instr::bkptT1\n");
+  case Instr::setendT1:
+    return printf("Instr::setendT1\n");
+  case Instr::svcT1:
+    return printf("Instr::svcT1\n");
+  case Instr::bT1:
+    return printf("Instr::bT1\n");
+  case Instr::nopT1:
+    return printf("Instr::nopT1\n");
+  case Instr::yieldT1:
+    return printf("Instr::yieldT1\n");
+  case Instr::wfeT1:
+    return printf("Instr::wfeT1\n");
+  case Instr::wfiT1:
+    return printf("Instr::wfiT1\n");
+  case Instr::sevT1:
+    return printf("Instr::sevT1\n");
+  case Instr::itT1:
+    return printf("Instr::itT1\n");
+  case Instr::strregT1:
+    return printf("Instr::strregT1\n");
+  case Instr::strhregT1:
+    return printf("Instr::strhregT1\n");
+  case Instr::strbregT1:
+    return printf("Instr::strbregT1\n");
+  case Instr::ldrsbregT1:
+    return printf("Instr::ldrsbregT1\n");
+  case Instr::ldrregT1:
+    return printf("Instr::ldrregT1\n");
+  case Instr::ldrhregT1:
+    return printf("Instr::ldrhregT1\n");
+  case Instr::ldrbregT1:
+    return printf("Instr::ldrbregT1\n");
+  case Instr::ldrshregT1:
+    return printf("Instr::ldrshregT1\n");
+  case Instr::strimmT1:
+    return printf("Instr::strimmT1\n");
+  case Instr::ldrimmT1:
+    return printf("Instr::ldrimmT1\n");
+  case Instr::strbimmT1:
+    return printf("Instr::strbimmT1\n");
+  case Instr::ldrbimmT1:
+    return printf("Instr::ldrbimmT1\n");
+  case Instr::strhimmT1:
+    return printf("Instr::strhimmT1\n");
+  case Instr::ldrhimmT1:
+    return printf("Instr::ldrhimmT1\n");
+  case Instr::strimmT2:
+    return printf("Instr::strimmT2\n");
+  case Instr::ldrimmT2:
+    return printf("Instr::ldrimmT2\n");
+  case Instr::ldrlitT1:
+    return printf("Instr::ldrlitT1\n");
+  case Instr::adrT1:
+    return printf("Instr::adrT1\n");
+  case Instr::addspimmT1:
+    return printf("Instr::addspimmT1\n");
+  case Instr::stmT1:
+    return printf("Instr::stmT1\n");
+  case Instr::ldmT1:
+    return printf("Instr::ldmT1\n");
+  case Instr::bT2:
+    return printf("Instr::bT2\n");
+  case Instr::addregT2:
+    return printf("Instr::addregT2\n");
+  case Instr::cmpregT2:
+    return printf("Instr::cmpregT2\n");
+  case Instr::movregT1:
+    return printf("Instr::movregT1\n");
+  case Instr::movregT2:
+    return printf("Instr::movregT2\n");
+  case Instr::bxT1:
+    return printf("Instr::bxT1\n");
+  case Instr::blxT1:
+    return printf("Instr::blxT1\n");
+  case Instr::andregT1:
+    return printf("Instr::andregT1\n");
+  case Instr::eorregT1:
+    return printf("Instr::eorregT1\n");
+  case Instr::lslregT1:
+    return printf("Instr::lslregT1\n");
+  case Instr::lsrregT1:
+    return printf("Instr::lsrregT1\n");
+  case Instr::asrregT1:
+    return printf("Instr::asrregT1\n");
+  case Instr::adcregT1:
+    return printf("Instr::adcregT1\n");
+  case Instr::sbcregT1:
+    return printf("Instr::sbcregT1\n");
+  case Instr::rorregT1:
+    return printf("Instr::rorregT1\n");
+  case Instr::tstregT1:
+    return printf("Instr::tstregT1\n");
+  case Instr::rsbimmT1:
+    return printf("Instr::rsbimmT1\n");
+  case Instr::cmpregT1:
+    return printf("Instr::cmpregT1\n");
+  case Instr::cmnregT1:
+    return printf("Instr::cmnregT1\n");
+  case Instr::orrregT1:
+    return printf("Instr::orrregT1");
+  case Instr::mulT1:
+    return printf("Instr::mulT1\n");
+  case Instr::bicregT1:
+    return printf("Instr::bicregT1\n");
+  case Instr::mvnregT1:
+    return printf("Instr::mvnregT1\n");
+  case Instr::lslimmT1:
+    return printf("Instr::lslimmT1\n");
+  case Instr::lsrimmT1:
+    return printf("Instr::lsrimmT1\n");
+  case Instr::asrimmT1:
+    return printf("Instr::asrimmT1\n");
+  case Instr::addregT1:
+    return printf("Instr::addregT1\n");
+  case Instr::subregT1:
+    return printf("Instr::subregT1\n");
+  case Instr::addimmT1:
+    return printf("Instr::addimmT1\n");
+  case Instr::subimmT1:
+    return printf("Instr::subimmT1\n");
+  case Instr::movimmT1:
+    return printf("Instr::movimmT1\n");
+  case Instr::cmpimmT1:
+    return printf("Instr::cmpimmT1\n");
+  case Instr::addimmT2:
+    return printf("Instr::addimmT2\n");
+  case Instr::subimmT2:
+    return printf("Instr::subimmT2\n");
+  case Instr::strd:
+    return printf("Instr::strd\n");
+  case Instr::ldrsh:
+    return printf("Instr::ldrsh\n");
+  case Instr::strdImm:
+    return printf("Instr::strdImm\n");
+  case Instr::ldrshImm:
+    return printf("Instr::ldrshImm\n");
+  case Instr::ldrshLit:
+    return printf("Instr::ldrshLit\n");
+  case Instr::yield:
+    return printf("Instr::yield\n");
+  case Instr::wfe:
+    return printf("Instr::wfe\n");
+  case Instr::wfi:
+    return printf("Instr::wfi\n");
+  case Instr::sev:
+    return printf("Instr::sev\n");
+  case Instr::csdb:
+    return printf("Instr::csdb\n");
+  case Instr::dbg:
+    return printf("Instr::dbg\n");
+  case Instr::msrImmApp:
+    return printf("Instr::msrImmApp\n");
+  case Instr::movt:
+    return printf("Instr::movt\n");
+  case Instr::msrImmSys:
+    return printf("Instr::msrImmSys\n");
+  case Instr::movImm16:
+    return printf("Instr::movImm16\n");
+  case Instr::eorImm:
+    return printf("Instr::eorImm\n");
+  case Instr::subImm:
+    return printf("Instr::subImm\n");
+  case Instr::adr:
+    return printf("Instr::adr\n");
+  case Instr::rsbImm:
+    return printf("Instr::rsbImm\n");
+  case Instr::addImm:
+    return printf("Instr::addImm\n");
+  case Instr::adcImm:
+    return printf("Instr::adcImm\n");
+  case Instr::sbcImm:
+    return printf("Instr::sbcImm\n");
+  case Instr::rscImm:
+    return printf("Instr::rscImm\n");
+  case Instr::tstImm:
+    return printf("Instr::tstImm\n");
+  case Instr::teqImm:
+    return printf("Instr::teqImm\n");
+  case Instr::cmpImm:
+    return printf("Instr::cmpImm\n");
+  case Instr::cmnImm:
+    return printf("Instr::cmnImm\n");
+  case Instr::orrImm:
+    return printf("Instr::orrImm\n");
+  case Instr::movImm:
+    return printf("Instr::movImm\n");
+  case Instr::bicImm:
+    return printf("Instr::bicImm\n");
+  case Instr::mvnImm:
+    return printf("Instr::mvnImm\n");
+  case Instr::andImm:
+    return printf("Instr::andImm\n");
+  case Instr::strht:
+    return printf("Instr::strht\n");
+  case Instr::strht2:
+    return printf("Instr::strht2\n");
+  case Instr::ldrht:
+    return printf("Instr::ldrht\n");
+  case Instr::ldrsbt:
+    return printf("Instr::ldrsbt\n");
+  case Instr::ldrsht:
+    return printf("Instr::ldrsht\n");
+  case Instr::strhReg:
+    return printf("Instr::strhReg\n");
+  case Instr::ldrhReg:
+    return printf("Instr::ldrhReg\n");
+  case Instr::strhImm:
+    return printf("Instr::strhImm\n");
+  case Instr::ldrhImm:
+    return printf("Instr::ldrhImm\n");
+  case Instr::ldrhLit:
+    return printf("Instr::ldrhLit\n");
+  case Instr::ldrdReg:
+    return printf("Instr::ldrdReg\n");
+  case Instr::ldrsbReg:
+    return printf("Instr::ldrsbReg\n");
+  case Instr::ldrdImm:
+    return printf("Instr::ldrdImm\n");
+  case Instr::ldrdLit:
+    return printf("Instr::ldrdLit\n");
+  case Instr::ldrsbImm:
+    return printf("Instr::ldrsbImm\n");
+  case Instr::ldrsbLit:
+    return printf("Instr::ldrsbLit\n");
+  case Instr::swp:
+    return printf("Instr::swp\n");
+  case Instr::strex:
+    return printf("Instr::strex\n");
+  case Instr::ldrex:
+    return printf("Instr::ldrex\n");
+  case Instr::strexd:
+    return printf("Instr::strexd\n");
+  case Instr::ldrexd:
+    return printf("Instr::ldrexd\n");
+  case Instr::strexb:
+    return printf("Instr::strexb\n");
+  case Instr::ldrexb:
+    return printf("Instr::ldrexb\n");
+  case Instr::strexh:
+    return printf("Instr::strexh\n");
+  case Instr::ldrexh:
+    return printf("Instr::ldrexh\n");
+  case Instr::mul:
+    return printf("Instr::mul\n");
+  case Instr::mla:
+    return printf("Instr::mla\n");
+  case Instr::umaal:
+    return printf("Instr::umaal\n");
+  case Instr::mls:
+    return printf("Instr::mls\n");
+  case Instr::umull:
+    return printf("Instr::umull\n");
+  case Instr::umlal:
+    return printf("Instr::umlal\n");
+  case Instr::smull:
+    return printf("Instr::smull\n");
+  case Instr::smlal:
+    return printf("Instr::smlal\n");
+  case Instr::smlabb:
+    return printf("Instr::smlabb\n");
+  case Instr::smlawb:
+    return printf("Instr::smlawb\n");
+  case Instr::smulwb:
+    return printf("Instr::smulwb\n");
+  case Instr::smlalbb:
+    return printf("Instr::smlalbb\n");
+  case Instr::smulbb:
+    return printf("Instr::smulbb\n");
+  case Instr::qadd:
+    return printf("Instr::qadd\n");
+  case Instr::qsub:
+    return printf("Instr::qsub\n");
+  case Instr::qdadd:
+    return printf("Instr::qdadd\n");
+  case Instr::qdsub:
+    return printf("Instr::qdsub\n");
+  case Instr::bx:
+    return printf("Instr::bx\n");
+  case Instr::clz:
+    return printf("Instr::clz\n");
+  case Instr::bxj:
+    return printf("Instr::bxj\n");
+  case Instr::blxReg:
+    return printf("Instr::blxReg\n");
+  case Instr::eret:
+    return printf("Instr::eret\n");
+  case Instr::bkpt:
+    return printf("Instr::bkpt\n");
+  case Instr::hvc:
+    return printf("Instr::hvc\n");
+  case Instr::smc:
+    return printf("Instr::smc\n");
+  case Instr::mrsBanked:
+    return printf("Instr::mrsBanked\n");
+  case Instr::msrBanked:
+    return printf("Instr::msrBanked\n");
+  case Instr::mrs:
+    return printf("Instr::mrs\n");
+  // case Instr::msr:
+  //   return printf("Instr::msr\n");
+  case Instr::msrApp:
+    return printf("Instr::msrApp\n");
+  case Instr::msrSys:
+    return printf("Instr::msrSys\n");
+  case Instr::orrShiftedReg:
+    return printf("Instr::orrShiftedReg\n");
+  case Instr::lslReg:
+    return printf("Instr::lslReg\n");
+  case Instr::lsrReg:
+    return printf("Instr::lsrReg\n");
+  case Instr::asrReg:
+    return printf("Instr::asrReg\n");
+  case Instr::rorReg:
+    return printf("Instr::rorReg\n");
+  case Instr::bicShiftedReg:
+    return printf("Instr::bicShiftedReg\n");
+  case Instr::mvnShiftedReg:
+    return printf("Instr::mvnShiftedReg\n");
+  case Instr::eorShiftedReg:
+    return printf("Instr::eorShiftedReg\n");
+  case Instr::subShiftedReg:
+    return printf("Instr::subShiftedReg\n");
+  case Instr::rsbShiftedReg:
+    return printf("Instr::rsbShiftedReg\n");
+  case Instr::addShiftedReg:
+    return printf("Instr::addShiftedReg\n");
+  case Instr::adcShiftedReg:
+    return printf("Instr::adcShiftedReg\n");
+  case Instr::sbcShiftedReg:
+    return printf("Instr::sbcShiftedReg\n");
+  case Instr::rscShiftedReg:
+    return printf("Instr::rscShiftedReg\n");
+  case Instr::tstShiftedReg:
+    return printf("Instr::tstShiftedReg\n");
+  case Instr::teqShiftedReg:
+    return printf("Instr::teqShiftedReg\n");
+  case Instr::cmpShiftedReg:
+    return printf("Instr::cmpShiftedReg\n");
+  case Instr::cmnShiftedReg:
+    return printf("Instr::cmnShiftedReg\n");
+  case Instr::andShiftedReg:
+    return printf("Instr::andShiftedReg\n");
+  case Instr::asrImm:
+    return printf("Instr::asrImm\n");
+  case Instr::andReg:
+    return printf("Instr::andReg\n");
+  case Instr::eorReg:
+    return printf("Instr::eorReg\n");
+  case Instr::subReg:
+    return printf("Instr::subReg\n");
+  case Instr::rsbReg:
+    return printf("Instr::rsbReg\n");
+  case Instr::addReg:
+    return printf("Instr::addReg\n");
+  case Instr::adcReg:
+    return printf("Instr::adcReg\n");
+  case Instr::sbcReg:
+    return printf("Instr::sbcReg\n");
+  case Instr::rscReg:
+    return printf("Instr::rscReg\n");
+  case Instr::tstReg:
+    return printf("Instr::tstReg\n");
+  case Instr::teqReg:
+    return printf("Instr::teqReg\n");
+  case Instr::cmpReg:
+    return printf("Instr::cmpReg\n");
+  case Instr::cmnReg:
+    return printf("Instr::cmnReg\n");
+  case Instr::orrReg:
+    return printf("Instr::orrReg\n");
+  case Instr::movReg:
+    return printf("Instr::movReg\n");
+  case Instr::lslImm:
+    return printf("Instr::lslImm\n");
+  case Instr::lsrImm:
+    return printf("Instr::lsrImm\n");
+  case Instr::rrx:
+    return printf("Instr::rrx\n");
+  case Instr::rorImm:
+    return printf("Instr::rorImm\n");
+  case Instr::bicReg:
+    return printf("Instr::bicReg\n");
+  case Instr::mvnReg:
+    return printf("Instr::mvnReg\n");
+  case Instr::smlad:
+    return printf("Instr::smlad\n");
+  case Instr::smuad:
+    return printf("Instr::smuad\n");
+  case Instr::smlsd:
+    return printf("Instr::smlsd\n");
+  case Instr::smusd:
+    return printf("Instr::smusd\n");
+  case Instr::sdiv:
+    return printf("Instr::sdiv\n");
+  case Instr::smlald:
+    return printf("Instr::smlald\n");
+  case Instr::smlsld:
+    return printf("Instr::smlsld\n");
+  case Instr::smmla:
+    return printf("Instr::smmla\n");
+  case Instr::smmul:
+    return printf("Instr::smmul\n");
+  case Instr::smmls:
+    return printf("Instr::smmls\n");
+  case Instr::udiv:
+    return printf("Instr::udiv\n");
+  case Instr::revsh:
+    return printf("Instr::revsh\n");
+  case Instr::uxth:
+    return printf("Instr::uxth\n");
+  case Instr::uxtah:
+    return printf("Instr::uxtah\n");
+  case Instr::rbit:
+    return printf("Instr::rbit\n");
+  case Instr::uxtb:
+    return printf("Instr::uxtb\n");
+  case Instr::uxtab:
+    return printf("Instr::uxtab\n");
+  case Instr::usat16:
+    return printf("Instr::usat16\n");
+  case Instr::usat:
+    return printf("Instr::usat\n");
+  case Instr::uxtb16:
+    return printf("Instr::uxtb16\n");
+  case Instr::uxtab16:
+    return printf("Instr::uxtab16\n");
+  case Instr::rev16:
+    return printf("Instr::rev16\n");
+  case Instr::sxth:
+    return printf("Instr::sxth\n");
+  case Instr::sxtah:
+    return printf("Instr::sxtah\n");
+  case Instr::rev:
+    return printf("Instr::rev\n");
+  case Instr::sxtb:
+    return printf("Instr::sxtb\n");
+  case Instr::sxtab:
+    return printf("Instr::sxtab\n");
+  case Instr::ssat16:
+    return printf("Instr::ssat16\n");
+  case Instr::ssat:
+    return printf("Instr::ssat\n");
+  case Instr::sel:
+    return printf("Instr::sel\n");
+  case Instr::sxtb16:
+    return printf("Instr::sxtb16\n");
+  case Instr::sxtab16:
+    return printf("Instr::sxtab16\n");
+  case Instr::pkh:
+    return printf("Instr::pkh\n");
+  case Instr::qsub8:
+    return printf("Instr::qsub8\n");
+  case Instr::qadd8:
+    return printf("Instr::qadd8\n");
+  case Instr::qsub16:
+    return printf("Instr::qsub16\n");
+  case Instr::qsax:
+    return printf("Instr::qsax\n");
+  case Instr::qasx:
+    return printf("Instr::qasx\n");
+  case Instr::qadd16:
+    return printf("Instr::qadd16\n");
+
+  case Instr::shsub8:
+    return printf("Instr::shsub8\n");
+  case Instr::shadd8:
+    return printf("Instr::shadd8\n");
+  case Instr::shsub16:
+    return printf("Instr::shsub16\n");
+  case Instr::shsax:
+    return printf("Instr::shsax\n");
+  case Instr::shasx:
+    return printf("Instr::shasx\n");
+  case Instr::shadd16:
+    return printf("Instr::shadd16\n");
+
+  case Instr::ssub8:
+    return printf("Instr::ssub8\n");
+  case Instr::sadd8:
+    return printf("Instr::sadd8\n");
+  case Instr::ssub16:
+    return printf("Instr::ssub16\n");
+  case Instr::ssax:
+    return printf("Instr::ssax\n");
+  case Instr::sasx:
+    return printf("Instr::sasx\n");
+  case Instr::sadd16:
+    return printf("Instr::sadd16\n");
+  case Instr::ubfx:
+    return printf("Instr::ubfx\n");
+  case Instr::bfi:
+    return printf("Instr::bfi\n");
+  case Instr::bfc:
+    return printf("instr::bfc\n");
+  case Instr::sbfx:
+    return printf("Instr::sbfx\n");
+  case Instr::usad8:
+    return printf("Instr::usad8\n");
+  case Instr::usada8:
+    return printf("Instr::usada8\n");
+  case Instr::mcrr1:
+    return printf("Instr::mcrr1\n");
+  case Instr::mrrc1:
+    return printf("Instr::mrrc1\n");
+  case Instr::cdp1:
+    return printf("Instr::cdp1\n");
+  case Instr::mcr1:
+    return printf("Instr::mcr1\n");
+  case Instr::mrc1:
+    return printf("Instr::mrc1\n");
+
+  case Instr::ldc1Lit:
+    return printf("Instr::ldc1Lit\n");
+  case Instr::ldc1Imm:
+    return printf("Instr::ldc1Imm\n");
+  case Instr::stc1:
+    return printf("Instr::stc1\n");
+  case Instr::svc:
+    return printf("Instr::svc\n");
+  case Instr::b:
+    return printf("Instr::b\n");
+  case Instr::ldmExRet:
+    return printf("Instr::ldmExRet\n");
+  case Instr::stmUser:
+    return printf("Instr::stmUser\n");
+  case Instr::ldmUser:
+    return printf("Instr::ldmUser\n");
+  case Instr::ldmib:
+    return printf("Instr::ldmib\n");
+  case Instr::stmib:
+    return printf("Instr::stmib\n");
+  case Instr::ldmdb:
+    return printf("Instr::ldmdb\n");
+  case Instr::push:
+    return printf("Instr::push\n");
+  case Instr::stmdb:
+    return printf("Instr::stmdb\n");
+  case Instr::pop:
+    return printf("Instr::pop\n");
+  case Instr::ldm:
+    return printf("Instr::ldm\n");
+  case Instr::stm:
+    return printf("Instr::stm\n");
+  case Instr::ldmda:
+    return printf("Instr::ldmda\n");
+  case Instr::stmda:
+    return printf("Instr::stmda\n");
+  case Instr::srs:
+    return printf("Instr::srs\n");
+  case Instr::rfe:
+    return printf("Instr::rfe\n");
+  case Instr::bl:
+    return printf("Instr::bl\n");
+  case Instr::blx:
+    return printf("Instr::blx\n");
+  case Instr::stc2:
+    return printf("Instr::stc2\n");
+  case Instr::ldc2Imm:
+    return printf("Instr::ldc2Imm\n");
+  case Instr::ldc2Lit:
+    return printf("Instr::ldcLit\n");
+  case Instr::mcrr2:
+    return printf("Instr::mcrr2\n");
+  case Instr::mrrc2:
+    return printf("Instr::mrrc2\n");
+  case Instr::cdp2:
+    return printf("Instr::cdp2\n");
+  case Instr::mcr2:
+    return printf("Instr::mcr2\n");
+  case Instr::mrc2:
+    return printf("Instr::mrc2\n");
+  case Instr::cps:
+    return printf("Instr::cps\n");
+  case Instr::setend:
+    return printf("Instr::setend\n");
+  case Instr::unpredictable:
+    return printf("Instr::unpredictable\n");
+  case Instr::nop:
+    return printf("Instr::nop\n");
+  case Instr::pliImm:
+    return printf("Instr::pliImm\n");
+  case Instr::pldImm:
+    return printf("Instr::pldImm\n");
+  case Instr::pldLit:
+    return printf("Instr::pldLit\n");
+  case Instr::clrex:
+    return printf("Instr::clrex\n");
+  case Instr::dsb:
+    return printf("Instr::dsb\n");
+  case Instr::dmb:
+    return printf("Instr::dmb\n");
+  case Instr::isb:
+    return printf("Instr::isb\n");
+  case Instr::pliReg:
+    return printf("Instr::pliReg\n");
+  case Instr::pldReg:
+    return printf("Instr::pldReg\n");
+  case Instr::undefined:
+    return printf("Instr::undefined\n");
+  case Instr::strImm:
+    return printf("Instr::strImm\n");
+  case Instr::strReg:
+    return printf("Instr::strReg\n");
+  case Instr::strt1:
+    return printf("Instr::strt1\n");
+  case Instr::strt2:
+    return printf("Instr::strt2\n");
+  case Instr::ldrImm:
+    return printf("Instr::ldrImm\n");
+  case Instr::ldrLit:
+    return printf("Instr::ldrLit\n");
+  case Instr::ldrReg:
+    return printf("Instr::ldrReg\n");
+  case Instr::ldrt1:
+    return printf("Instr::ldrt1\n");
+  case Instr::ldrt2:
+    return printf("Instr::ldrt2\n");
+  case Instr::strbImm:
+    return printf("Instr::strbImm\n");
+  case Instr::strbReg:
+    return printf("Instr::strbReg\n");
+  case Instr::strbt1:
+    return printf("Instr::strbt1\n");
+  case Instr::strbt2:
+    return printf("Instr::strbt2\n");
+  case Instr::ldrbImm:
+    return printf("Instr::ldrbImm\n");
+  case Instr::ldrbLit:
+    return printf("Instr::ldrbLit\n");
+  case Instr::ldrbReg:
+    return printf("Instr::ldrbReg\n");
+  case Instr::ldrbt1:
+    return printf("Instr::ldrbt1\n");
+  case Instr::ldrbt2:
+    return printf("Instr::ldrbt2\n");
+  case Instr::uadd16:
+    return printf("Instr::uadd16\n");
+  case Instr::uasx:
+    return printf("Instr::uasx\n");
+  case Instr::usax:
+    return printf("Instr::usax\n");
+  case Instr::usub16:
+    return printf("Instr::usub16\n");
+  case Instr::uadd8:
+    return printf("Instr::uadd8\n");
+  case Instr::usub8:
+    return printf("Instr::usub8\n");
+  case Instr::uqadd16:
+    return printf("Instr::uqadd16\n");
+  case Instr::uqasx:
+    return printf("Instr::uqasx\n");
+  case Instr::uqsax:
+    return printf("Instr::uqsax\n");
+  case Instr::uqsub16:
+    return printf("Instr::uqsub16\n");
+  case Instr::uqadd8:
+    return printf("Instr::uqadd8\n");
+  case Instr::uqsub8:
+    return printf("Instr::uqsub8\n");
+  case Instr::uhadd16:
+    return printf("Instr::uhadd16\n");
+  case Instr::uhasx:
+    return printf("Instr::uhasx\n");
+  case Instr::uhsax:
+    return printf("Instr::uhsax\n");
+  case Instr::uhsub16:
+    return printf("Instr::uhsub16\n");
+  case Instr::uhadd8:
+    return printf("Instr::uhadd8\n");
+  case Instr::uhsub8:
+    return printf("Instr::uhsub8\n");
+  }
+
+  return printf("Unknown instruction\n");
+}
+
 #ifdef TESTING
 struct Pair {
   Instr instr;

@@ -1,5 +1,6 @@
 
 #pragma once
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 
@@ -65,6 +66,14 @@ struct FileReader {
 inline u32 align4(u32 addr) { return addr & (u32(0xffffffff) << 2); }
 
 inline u32 align2(u32 addr) { return addr & (u32(0xffffffff) << 1); }
+
+inline size_t alignB(size_t addr, size_t target) {
+  return addr & ~(target-1);
+}
+
+inline size_t alignF(size_t addr, size_t target) {
+  return alignB(addr-1, target) + target;
+}
 
 inline i8 s8(u8 v) {
   union {
@@ -142,4 +151,8 @@ inline u8 bitcount16(u16 v) {
     v >>= 1;
   }
   return bits;
+}
+
+inline u8 u5(u8 v) {
+  return v&0b11111;
 }

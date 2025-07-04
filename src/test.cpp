@@ -1,0 +1,40 @@
+#include "test.hpp"
+void tester(){
+Cpu c; u64 counter = 0;c.reset();
+c.r(0, 0xea49b0ca);
+c.r(1, 0x971ae6f9);
+c.r(2, 0x7b558e32);
+c.r(3, 0xa74566a2);
+c.r(4, 0xdd6c0abf);
+c.r(5, 0xcc78f7c);
+c.r(6, 0xd6fb993f);
+c.r(7, 0xdb0c279a);
+c.r(8, 0xb6b4565b);
+c.r(9, 0x7eb6d89b);
+c.r(10, 0xe9250103);
+c.r(11, 0xe9892a6b);
+c.r(12, 0x44526791);
+c.r(13, 0x1000400);
+c.r(14, 0x9c545a4d);
+c.pcReal(0x1000000);c.r(13, 0x400);
+printf("%lu 0xe92d5fff => ", counter);
+c.pcReal(c.exec(0xe92d5fff));
+printf("%lu 0xe8bd5fff => ", counter);
+c.pcReal(c.exec(0xe8bd5fff));
+c.expectreg(0, 0xea49b0ca);
+c.expectreg(1, 0x971ae6f9);
+c.expectreg(2, 0x7b558e32);
+c.expectreg(3, 0xa74566a2);
+c.expectreg(4, 0xdd6c0abf);
+c.expectreg(5, 0xcc78f7c);
+c.expectreg(6, 0xd6fb993f);
+c.expectreg(7, 0xdb0c279a);
+c.expectreg(8, 0xb6b4565b);
+c.expectreg(9, 0x7eb6d89b);
+c.expectreg(10, 0xe9250103);
+c.expectreg(11, 0xe9892a6b);
+c.expectreg(12, 0x44526791);
+c.expectreg(13, 0x400);
+c.expectreg(14, 0x9c545a4d);
+counter += 1;
+}

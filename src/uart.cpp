@@ -5,7 +5,8 @@ PL011 uart0 = {};
 
 static PL011 *getUart(u32 addr) { return &uart0; }
 
-u32 read(u32 addr, u8 width) {
+u32 read(u32 addr, u8 width, void *ctx) {
+  (void)ctx;
   PL011 *uart = getUart(addr);
   u32 offset = addr & 0xfff;
   //printf("UART was read!!!! width: %d %d\n", width, offset);
@@ -29,7 +30,8 @@ u32 read(u32 addr, u8 width) {
   return 0;
 }
 
-void write(u32 addr, u32 value, u8 width) {
+void write(u32 addr, u32 value, u8 width, void *ctx) {
+  (void)ctx;
   //printf("UART was written!!! width: %d\n", width);
   PL011 *uart = getUart(addr);
   u32 offset = addr & 0xfff;
@@ -57,7 +59,7 @@ void write(u32 addr, u32 value, u8 width) {
 
 Region getRegion() {
   return {
-      .start = 0x40000000,
+      .start = 0x80009000,
       .len = 0x1000,
       .r = &read,
       .w = &write,

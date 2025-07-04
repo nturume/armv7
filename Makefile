@@ -28,6 +28,8 @@ INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 CPPFLAGS := $(INC_FLAGS) -MMD -MP
 CXX := g++
 
+TOOLCHAIN := /home/m/Desktop/opt/arm/bin/arm-linux-gnueabi-
+
 $(TARGET_EXEC): $(OBJS)
 	@echo "Linking $@"
 	$(V_AT)$(CXX) -g $(OBJS) -o $@ $(LDFLAGS) $(CFLAGS)
@@ -38,14 +40,12 @@ $(BUILD_DIR)/%.cpp.o: %.cpp $(HEADERS)
 	$(V_AT)$(CXX) -g $(CPPFLAGS) -c $< -o $@ $(CFLAGS)
 
 $(BUILD_DIR)/elf: $(ASM) $(SRC_DIRS)/l.ld
-	$(V_AT)arm-none-eabi-as $(SRC_DIRS)/prog.s -o $(BUILD_DIR)/a.out
-	$(V_AT)arm-none-eabi-ld $(BUILD_DIR)/a.out -o $(BUILD_DIR)/elf -T$(SRC_DIRS)/l.ld
+	$(V_AT)$(TOOLCHAIN)as $(SRC_DIRS)/prog.s -o $(BUILD_DIR)/a.out
+	$(V_AT)$(TOOLCHAIN)ld $(BUILD_DIR)/a.out -o $(BUILD_DIR)/elf -T$(SRC_DIRS)/l.ld
 	$(V_AT)rm $(BUILD_DIR)/a.out
 	
 $(BUILD_DIR)/c.elf: $(SRC_DIRS)/prog.c $(SRC_DIRS)/l.ld
-	$(V_AT)arm-none-eabi-gcc -marm -mcpu=cortex-a7 -c $(SRC_DIRS)/prog.c -o $(BUILD_DIR)/a.out
-	$(V_AT)arm-none-eabi-ld $(BUILD_DIR)/a.out -o $(BUILD_DIR)/c.elf -T$(SRC_DIRS)/l.ld
-	$(V_AT)rm $(BUILD_DIR)/a.out
+	$(V_AT)$(TOOLCHAIN)gcc -g -mcpu=cortex-a7 $(SRC_DIRS)/prog.c -o $(BUILD_DIR)/c.elf -lc -static
 
 clean:
 	$(V_AT)rm -rf build/* *.iso

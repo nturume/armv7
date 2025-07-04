@@ -1,20 +1,21 @@
 #include "cpu.hpp"
-#include "arith.hpp"
 #include "bin.hpp"
 #include "decoder.hpp"
 #include "stuff.hpp"
-// #include "test.hpp"
+#include "test.hpp"
+#include "uart.hpp"
 #include <cassert>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <string>
+
+void Cpu::test() { tester(); }
 
 u32 Cpu::exec(u32 word) {
   cur = word;
- // printf("%x ", word);
-  Instr instr = Decoder::decodeA(word);
+  // printf("%x ", word);
+  Instr instr = Decoder::decode(word, currInstrSet());
+  // Decoder::printInstr(instr);
   switch (instr) {
   case Instr::adcImm:
     return adcImm();
@@ -62,6 +63,8 @@ u32 Cpu::exec(u32 word) {
     return andShiftedReg();
   case Instr::orrReg:
     return orrReg();
+  case Instr::orrImm:
+    return orrImm();
   case Instr::lsrReg:
     return lsrReg();
   case Instr::orrShiftedReg:
@@ -84,6 +87,12 @@ u32 Cpu::exec(u32 word) {
     return tstReg();
   case Instr::tstShiftedReg:
     return tstShiftedReg();
+  case Instr::mvnImm: // not
+    return mvnImm();
+  case Instr::mvnReg:
+    return mvnReg();
+  case Instr::mvnShiftedReg:
+    return mvnShiftedReg();
   case Instr::asrImm:
     return asrImm();
   case Instr::asrReg:
@@ -142,12 +151,6 @@ u32 Cpu::exec(u32 word) {
     return msrImmApp();
   case Instr::msrApp:
     return msrApp();
-  case Instr::mvnImm: // not
-    return mvnImm();
-  case Instr::mvnReg:
-    return mvnReg();
-  case Instr::mvnShiftedReg:
-    return mvnShiftedReg();
   case Instr::mul:
     return mul();
   case Instr::nop:
@@ -278,8 +281,6 @@ u32 Cpu::exec(u32 word) {
     return ssax();
   case Instr::shsax:
     return shsax();
-  case Instr::orrImm:
-    return orrImm();
   case Instr::ssub16:
     return ssub16();
   case Instr::ssub8:
@@ -424,6 +425,8 @@ u32 Cpu::exec(u32 word) {
     return bl();
   case Instr::bx:
     return bx();
+  case Instr::blxReg:
+    return blxReg();
   case Instr::undefined:
     return takeUndefInstrException();
   case Instr::svc:
@@ -438,6 +441,19 @@ u32 Cpu::exec(u32 word) {
     return msrImmSys();
   case Instr::cps:
     return cps();
+  case Instr::mcr1:
+  case Instr::mcr2:
+    return mcr();
+  case Instr::mrc1:
+  case Instr::mrc2:
+    return mrc();
+  case Instr::dmb:
+  case Instr::isb:
+  case Instr::dsb:
+  case Instr::pldImm:
+  case Instr::pldLit:
+  case Instr::pldReg:
+    return nxt();
   case Instr::wfi:
     printf("==== WFI ====\n");
     exit(0);
@@ -453,15 +469,211 @@ u32 Cpu::exec(u32 word) {
 
 u32 Cpu::x(const char *prog) { return exec(assemble(prog)); }
 
-void Cpu::test() {
-  Cpu c;
-  c.r(0, 0xffffffff);
-  c.x("str r0, [r1, r4]");
-  c.x("str r0, [r1, #4]");
-  c.r(0, 0xddddddd8);
-  c.x("str r0, [r1, #8]");
-  c.r(13, 12);
-  c.x("push {r0, r1, r2}");
-  c.expectreg(13, 0x0);
-  ;
+#include<unistd.h>
+#include<sys/uio.h>
+#include<sys/resource.h>
+#include<sys/stat.h>
+
+static void brk(Cpu *c) {
+  u32 brk_addr = c->r(0);
+  // printf("BRK: %x\n", brk_addr);
+  if (brk_addr == 0) {
+    c->r(0, c->mem.program_end);
+  } else {
+    u32 increment = brk_addr - c->mem.program_end;
+    // printf("Increment: %x\n", increment);
+    if(increment>1024*1024) {
+      return c->r(0, ~0);
+    }
+    c->r(0, 0);
+    //assert(false);
+  }
+}
+
+static void setTls(Cpu *c) {
+  // c->printRegisters();
+  c->user_tls = c->r(0);
+  c->r(0, 0);
+}
+
+static void write(Cpu *c) {
+  // printf("WRITE => pc: %x\n", c->pcReal());
+  // fgetc(stdin);
+  c->r(0, write(c->r(0), c->mem.sysPtr(c->r(1)), c->r(2)));
+}
+
+static void writeV(Cpu *c) {
+  c->r(0, writev(c->r(0),(const struct iovec *) c->mem.sysPtr(c->r(1)), c->r(2)));
+}
+
+static void exitGroup(Cpu *c) {
+  // printf("_exit(%d)\n", c->r(0));
+  _exit(c->r(0));
+}
+
+static void setTid(Cpu *c) {
+  // printf("TID: %x\n", c->r(0));
+  return c->r(0, ~0);
+}
+
+static void setRobustList(Cpu *c) {
+  // printf("Robust List: %x\n", c->r(0));
+  return c->r(0, ~0);
+}
+
+
+static void sys398(Cpu *c) {
+  // printf("Arg: %x\n", c->r(0));
+  return c->r(0, ~0);
+}
+
+
+
+static void readLinkAt(Cpu *c) {
+  // printf("Arg: %x\n", c->r(0));
+  // printf("Arg2: %s\n", (char*)c->mem.sysPtr(c->r(1)));
+  char *buf = (char*)c->mem.sysPtr(c->r(2));
+  buf[0] = '/';
+  buf[1] = 'x';
+  // assert(false);
+  return c->r(0, 2);
+}
+
+static void rtSigProcMask(Cpu *c) {
+  // printf("Arg: %x\n", c->r(0));
+  return c->r(0, ~0);
+}
+
+static void getID(Cpu *c) {
+  // printf("get id Arg: %x\n", c->r(0));
+  return c->r(0, 0);
+}//0x408001c5
+
+// 0x400fef50 0x400fef40
+
+
+static void getPID(Cpu *c) {
+  // printf("get pid Arg: %x\n", c->r(0));
+  return c->r(0, 0);
+}
+
+static void getRandom(Cpu *c) {
+  // printf("get random Arg: %x %x\n", c->r(0), c->r(1));
+  u32 *buf = (u32*)c->mem.sysPtr(c->r(0));
+  *buf = c->r(0);
+  //assert(false);
+  return c->r(0, c->r(1));
+}
+
+static void tgKill(Cpu *c) {
+  // printf("tgkill Arg: %x\n", c->r(0));
+  return c->r(0, 0);
+}
+
+
+static void rtSigaction(Cpu *c) {
+  // printf("get pid Arg: %x\n", c->r(0));
+  return c->r(0, 0);
+}
+
+
+static void mmap2(Cpu *c) {
+  // printf("mmpa2 Arg: %x\n", c->r(0));
+  // printf("mmpa2 Arg: %x\n", c->r(1));
+  // printf("mmpa2 Arg: %x\n", c->r(2));
+  // printf("mmpa2 Arg: %x\n", c->r(3));
+  // printf("mmpa2 Arg: %x\n", c->r(4));
+  // printf("mmpa2 Arg: %x\n", c->r(5));
+  Ram *r = c->mem.allocRandom(c->r(1));
+  // printf("mmpa2 alloc at: %x\n", r->start);
+  // assert(false);
+  return c->r(0, r->start);
+}
+
+static void mProtect(Cpu *c) {
+  // printf("get pid Arg: %x\n", c->r(0));
+  // assert(false);
+  return c->r(0, 0);
+}
+
+
+static void getRLimit(Cpu *c) {
+  // printf("get rlimit Arg: %x\n", c->r(1));
+  if(c->r(0)==RLIMIT_STACK) {
+    u32 *r = (u32 *)c->mem.sysPtr(c->r(1));
+    r[0] = 1024*1024;
+    r[1] = 1024*1024;
+  // assert(false);
+    return c->r(0, 0);
+  }
+  assert(false);
+  return c->r(0, ~0);
+}
+
+
+static void statX(Cpu *c) {
+  // printf("get pid Arg: %x\n", c->r(0));
+  // assert(false);
+  // printf("statx Arg: %x\n", c->r(0));
+  // printf("statx Arg: %x\n", c->r(1));
+  // printf("statx Arg: %x\n", c->r(2));
+  // printf("statx Arg: %x\n", c->r(3));
+  // printf("statx Arg: %x\n", c->r(4));
+  // printf("statx Arg: %x\n", c->r(5));
+  i32 res = statx(
+                  s32(c->r(0)),
+                  (const char*)c->mem.sysPtr(c->r(1)),
+                  s32(c->r(3)),
+                  s32(c->r(4)),
+                  (struct statx *)c->mem.sysPtr(c->r(5))
+                   );
+  return c->r(0, uns32(res));
+}
+
+void Cpu::doSysCall() {
+  // printf("syscall happened: %d\n", r(7));
+  switch (r(7)) {
+  case 4:
+    return write(this);
+  case 45:
+    return brk(this);
+  case 983045:
+    return setTls(this);
+  case 248:
+    return exitGroup(this);
+  case 256:
+    return setTid(this);
+  case 338:
+    return setRobustList(this);
+  case 398:
+    return sys398(this);
+  case 191:
+    return getRLimit(this);
+  case 332:
+    return readLinkAt(this);
+  case 146:
+    return writeV(this);
+  case 192:
+    return mmap2(this);
+  case 175:
+    return rtSigProcMask(this);
+  case 224:
+    return getID(this);
+  case 20:
+    return getPID(this);
+  case 268:
+    return tgKill(this);
+  case 174:
+    return rtSigaction(this);
+  case 384:
+    return getRandom(this);
+  case 125:
+    return mProtect(this);
+  case 397:
+    return statX(this);
+  default: {
+    printf("Unimplemented syscall: %d\n", r(7));
+    abort();
+  }
+  }
 }

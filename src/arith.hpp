@@ -1,12 +1,7 @@
 #pragma once
 #include "stuff.hpp"
-#include <bit>
 #include <cassert>
 #include <cmath>
-#include <cstdint>
-#include <string>
-#include <system_error>
-#include <type_traits>
 
 namespace Arith {
 struct Res {
@@ -32,9 +27,9 @@ static inline Res lsl32(u32 v, u8 n) {
     res.v.u = 0;
     return res;
   }
-  u64 w = u64(v)<<n;
+  u64 w = u64(v) << n;
   res.v.u = u32(w);
-  res.c = (w&(1ul<<32))>0;
+  res.c = (w & (1ul << 32)) > 0;
   return res;
 }
 
@@ -44,9 +39,9 @@ static inline Res lsr32(u32 v, u8 n) {
     res.v.u = 0;
     return res;
   }
-  u64 w = (u64(v)<<1)>>n;
-  res.v.u = u32(w>>1);
-  res.c = (w&1);
+  u64 w = (u64(v) << 1) >> n;
+  res.v.u = u32(w >> 1);
+  res.c = (w & 1);
   return res;
 }
 
@@ -75,12 +70,17 @@ static inline Adc adc(u32 a, u32 b, bool carry) {
 static inline Res asr32(u32 v, u8 n) {
   Res res = {.v = {.u = v}, .c = false};
   if (n > 32) {
-    res.v.u = 0;
+    if (v >> 31) {
+      res.v.u = 0xffffffff;
+      res.c = true;
+    } else {
+      res.v.u = 0;
+    }
     return res;
   }
-  i32 w = (res.i()>>(n-1));
-  res.c = (w&1);
-  res.v.i = w>>1;
+  i32 w = (res.i() >> (n - 1));
+  res.c = (w & 1);
+  res.v.i = w >> 1;
   return res;
 }
 
@@ -232,29 +232,29 @@ static inline Res u16satAdd(u16 a, u16 b) {
     saturated = true;
     res = 0xffff;
   }
-  return Res{.v = {.u = res}, .c = saturated };
+  return Res{.v = {.u = res}, .c = saturated};
 }
 
 static inline Res u16satSub(u16 a, u16 b) {
   u16 res = 0;
   bool saturated = false;
-  if (a>b) {
-    res = a-b;
+  if (a > b) {
+    res = a - b;
   } else {
     saturated = true;
   }
-  return Res{.v = {.u = res}, .c = saturated };
+  return Res{.v = {.u = res}, .c = saturated};
 }
 
 static inline Res u8satSub(u8 a, u8 b) {
   u8 res = 0;
   bool saturated = false;
-  if (a>b) {
-    res = a-b;
+  if (a > b) {
+    res = a - b;
   } else {
     saturated = true;
   }
-  return Res{.v = {.u = res}, .c = saturated };
+  return Res{.v = {.u = res}, .c = saturated};
 }
 
 static inline Res u8satAdd(u8 a, u8 b) {
@@ -264,7 +264,7 @@ static inline Res u8satAdd(u8 a, u8 b) {
     saturated = true;
     res = 0xff;
   }
-  return Res{.v = {.u = res}, .c = saturated };
+  return Res{.v = {.u = res}, .c = saturated};
 }
 
 /// type must be pre masked
@@ -323,10 +323,8 @@ static inline Is decodeImmShift(u8 type, u8 imm5) {
   return i;
 }
 
-static inline Res expandImmC(u16 imm12) {
-  // just rotate direct
-  // return shiftC(imm12&0xff, 3, 2*((imm12>>8)&0xf), in);
-  return ror32(imm12 & 0xff, 2 * ((imm12 >> 8) & 0xf));
+static inline Res expandImmC(u16 imm12, bool in) {
+   return shiftC(imm12&0xff, 3, 2*((imm12>>8)&0xf), in);
 }
 
 #ifdef TESTING
