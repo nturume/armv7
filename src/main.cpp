@@ -12,6 +12,10 @@
 #include <cstdlib>
 #include <cstring>
 
+#define UBOOT_BASE 0x60800000
+#define HIGMEM_BASE 0x60000000
+#define FLASH1_BASE 0x40000000
+#define FLASH2_BASE 0x44000000
 
 int main(int argc, const char *argv[], const char *envp[]) {
   // Cpu::test();
@@ -19,30 +23,38 @@ int main(int argc, const char *argv[], const char *envp[]) {
   Cpu c;
   c.mem.bitset.reset();
   assert(!c.mem.bitset.any());
+
+  c.mem.newRam(FLASH2_BASE, 64*1024*1024);
+  c.mem.newRam(HIGMEM_BASE, 16*1024*1024); //16M ram
   
-  Elf elf("./build/c.elf");
 
-  Elf::ProgramHeaderIterator iter(elf.file, elf.header);
-
-   c.mem.loadElf(iter);
-   Ram *stack = c.mem.newRam(0x40000000, 1024*1024);
+  c.mem.loadBin(UBOOT_BASE,"/home/m/Desktop/u-boot-2025.07/u-boot.bin");
   
-   u32 sp = stack->loadArgs(argv, envp+10);
+  // Elf elf("/home/m/Desktop/u-boot-2025.07/u-boot");
 
-   c.apsr.b.m = u8(Cpu::Mode::user);
+  // Elf::ProgramHeaderIterator iter(elf.file, elf.header);
 
-// c.mem.regions.push_back(UART::getRegion());
+  // c.mem.loadElf(iter);
+  // Ram *stack = c.mem.newRam(0x40000000, 1024 * 1024);
 
-  c.pcReal(elf.header.e_entry);
-  
-  printf("ENTRY %x\n", elf.header.e_entry);
+  // u32 sp = stack->loadArgs(argv, envp+10);
+
+  // c.apsr.b.m = u8(Cpu::Mode::user);
+
+  // c.mem.regions.push_back(UART::getRegion());
+
+  c.reset();
+
+  c.pcReal(UBOOT_BASE);
+
+  // printf("ENTRY %x\n", elf.header.e_entry);
   // printf("HEAP BEGIN %x\n", c.mem.program_end);
 
-  Ram*heap = c.mem.newRam(c.mem.program_end, 1024 * 1024);
+  // Ram *heap = c.mem.newRam(c.mem.program_end, 1024 * 1024);
 
-  c.sp(sp);
+  c.sp(0);
   c.r(0, 0);
-  c.r(1, 0); 
+  c.r(1, 0);
   c.r(2, 0);
   c.r(3, 0);
   c.r(4, 0);
@@ -55,7 +67,6 @@ int main(int argc, const char *argv[], const char *envp[]) {
   c.r(11, 0);
   c.r(12, 0);
   c.r(14, 0);
-  
 
   // u32 count = 0;
   u32 prev;
@@ -65,7 +76,7 @@ int main(int argc, const char *argv[], const char *envp[]) {
 
   // printf("BUGGG: %x\n", bug);
 
-  //fgetc(stdin);
+  // fgetc(stdin);
 
   // {
   //     u8 *ptr = (u8*)c.mem.sysPtr(0x4080eeb8);
@@ -75,28 +86,29 @@ int main(int argc, const char *argv[], const char *envp[]) {
   //     }
 
   // }
-  
+
   // c.printRegisters();
-  bool step_mode = false; 
+  bool step_mode = false;
 
   u32 count = 0;
 
   while (true) {
-    //printf("pc: %x sp: %x, r0: %x\n", c.pcReal(), c.r(13), c.r(0));
-    // c.printMode(c.M());
-    // printf("ttbcr: %d\n", c.mem.mmu.ttbr0.back);
+    // printf("pc: %x sp: %x, r0: %x\n", c.pcReal(), c.r(13), c.r(0));
+    //  c.printMode(c.M());
+    //  printf("ttbcr: %d\n", c.mem.mmu.ttbr0.back);
     try {
       // c.printRegisters();
       // if(count==10)break;
       u32 word = c.mem.a32u(c.pcReal());
       // if(word==prev) count+=1; else count=0;
-      printf("%x %x ",c.pcReal(), c.sp());
-      Decoder::printInstr(Decoder::decode(word, c.currInstrSet()));
+      // printf("%x %x ", c.pcReal(), c.sp());
+      // c.disasm(c.pcReal(), word);
+      // Decoder::printInstr(Decoder::decode(word, c.currInstrSet()));
       u32 pc = c.exec(word);
       // prev = word;
       c.pcReal(pc);
     } catch (InvalidRegion &in) {
-      printf("===invalid region=== %x\n", in.address);
+      printf("===invalid %s region=== %x\n",in.byread?"read":"write", in.address);
       c.printRegisters();
       // c.pcReal(c.takeDataAbortException());
       abort();
@@ -115,24 +127,23 @@ int main(int argc, const char *argv[], const char *envp[]) {
     //     ptr += 1;
     //   }
     // }
-    
-    if(c.pcReal()==0x3cdfc or step_mode) {
+
+    if (c.pcReal() == 0x52e84 or step_mode) {
       step_mode = true;
       c.printRegisters();
       fgetc(stdin);
     }
 
-    //400210
-    //400feea8
+    // 400210
+    // 400feea8
 
     count += 1;
   }
-
 }
 
 // 4080f09c
 
-//0x0006a480
+// 0x0006a480
 
 // #define RBASE 0x60000000
 // #define ABASE 0x60000100
@@ -200,10 +211,7 @@ int main(int argc, const char *argv[], const char *envp[]) {
 //       abort();
 //     }
 //     if(stepi){
-//       if(fgetc(stdin)=='c') stepi = false; 
+//       if(fgetc(stdin)=='c') stepi = false;
 //     }
 //   }
 // }
-
-
-

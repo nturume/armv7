@@ -36,6 +36,23 @@ struct FileReader {
     }
     return read;
   }
+  
+  u64 write(u8 *buf, u64 len) {
+    u64 written = 0;
+    while (written < len) {
+      u64 amnt = len - written;
+      u64 n = fwrite(buf + written, 1, amnt, f);
+      if (n != amnt) {
+        if (ferror(f)) {
+          printf("FileReader::write() failed\n");
+          std::exit(1);
+        }
+        break;
+      }
+      written += n;
+    }
+    return written;
+  }
 
   fn seekBy(i64 n) {
     if (fseek(f, n, SEEK_CUR)) {
@@ -60,6 +77,10 @@ struct FileReader {
     u32 size = ftell(f);
     seekTo(0);
     return size;
+  }
+
+  void close () {
+    fclose(f);
   }
 };
 

@@ -1,11 +1,13 @@
 #pragma once
 #include "arith.hpp"
 #include "assert.h"
+#include "decoder.hpp"
 #include "mem.hpp"
 #include "stuff.hpp"
-#include "decoder.hpp"
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include<unistd.h>
 
 struct Cpu {
 
@@ -62,6 +64,8 @@ struct Cpu {
 
   u8 memfault = false;
 
+  u32 __vbar = 0;
+
   Memory mem;
 
   u32 cur;
@@ -70,6 +74,14 @@ struct Cpu {
 
   //===========to remove
   u32 user_tls = 0;
+
+  u32 vbar() {
+    return __vbar;
+  }
+
+  void vbar(u32 value) {
+    __vbar = value;
+  }
 
   InstrSet currInstrSet() { return instrset; }
 
@@ -269,7 +281,8 @@ struct Cpu {
     }
     if (hasSecurityExt())
       assert(false);
-    return 0;
+    
+    return vbar();
   }
 
   inline void r(u8 pos, u32 value) { rMode(pos & 0xf, value, M()); }
@@ -374,9 +387,10 @@ struct Cpu {
     return ptr;
   }
 
-  inline u32 branchWritePc(u32 ptr) { 
-    if(currInstrSet()==InstrSet::arm) return branchTo(ptr & (0xfffffffc)); 
-    return branchTo(ptr&0xfffffffe);
+  inline u32 branchWritePc(u32 ptr) {
+    if (currInstrSet() == InstrSet::arm)
+      return branchTo(ptr & (0xfffffffc));
+    return branchTo(ptr & 0xfffffffe);
   }
 
   inline u32 sp() { return r(13); }
@@ -390,12 +404,12 @@ struct Cpu {
   inline u32 pc() { return r(15); }
 
   inline u32 bxWritePc(u32 ptr) {
-    if(ptr&1) {
+    if (ptr & 1) {
       selectInstrSet(InstrSet::thumb);
-      return branchTo(ptr&0xfffffffe);
-    } else if((ptr&0b10)==0) {
+      return branchTo(ptr & 0xfffffffe);
+    } else if ((ptr & 0b10) == 0) {
       selectInstrSet(InstrSet::arm);
-      return branchTo(ptr&0xfffffffc);
+      return branchTo(ptr & 0xfffffffc);
     }
     // if ((ptr & 0b11) == 0) {
     //   return branchTo(ptr);
@@ -411,9 +425,7 @@ struct Cpu {
     return branchWritePc(ptr);
   }
 
-  inline u32 loadWritePc(u32 ptr) {
-     return bxWritePc(ptr);
-   }
+  inline u32 loadWritePc(u32 ptr) { return bxWritePc(ptr); }
 
   inline u32 expandImm(u16 imm12) { return Arith::expandImmC(imm12, c()).v.u; }
 
@@ -498,11 +510,42 @@ struct Cpu {
   void printRegisters() {
     printf("=========regs==========\n");
     for (u32 i = 0; i < 16; i++) {
-      printf("r%d =  %x\n",i, i<15? r(i): pcReal());
+      printf("r%d =  %x\n", i, i < 15 ? r(i) : pcReal());
     }
     printf("=========flags=========\n");
     printf("n: %d, z: %d, c: %d, v: %d, q: %d\n", (u32)apsr.b.n, (u32)apsr.b.z,
            (u32)apsr.b.c, (u32)apsr.b.v, (u32)apsr.b.q);
+  }
+  
+  void disasm(u32 ip, u32 word) {
+    FILE *tmp = fopen("/tmp/myvm/instr.bin", "w");
+    assert(tmp);
+    FileReader f(tmp);
+    f.seekTo(0);
+    assert(f.write((u8 *)&word, 4) == 4);
+    u64 tmpsize = f.getFileSize(); 
+    f.close();
+    char cmd[256] = {0};
+    snprintf(
+        cmd, 255,
+        "/home/m/Desktop/opt/arm/bin/arm-linux-gnueabi-objdump  -EL -b binary "
+        "-D -marm --adjust-vma=0x%x -d /dev/stdin < /tmp/myvm/instr.bin",
+        ip);
+    FILE *out = popen(cmd, "r");
+    if (!out) {
+      printf("%x:  %x DISASM FAILED FZ: %lu\n", ip, word, tmpsize);
+      sleep(1);
+      return;
+    }
+    u32 line = 0;
+    while (fgets(cmd, 255, out) != nullptr) {
+      if (line == 7) {
+        printf("%s", cmd);
+        break;
+      }
+      line += 1;
+    }
+    pclose(out);
   }
 
   u32 exec(u32 word);
@@ -617,6 +660,8 @@ struct Cpu {
     return branchTo(excVectorBase() + 16);
   }
 
+  #define MIDR 0x410fc090
+
   void cp15SendWord() {
     u8 crm = cur & 0xf;
     u8 opc2 = (cur >> 5) & 7;
@@ -624,42 +669,32 @@ struct Cpu {
     u8 crn = (cur >> 16) & 0xf;
     u8 opc1 = (cur >> 21) & 7;
 
-    // printf("mcr p15 %d, r%d, c%d, c%d, %d\n", opc1, t, crn, crm, opc2);
-
-    if (crn == 2 and opc1 == 0 and crm == 0 and opc2 == 2) {
-      mem.mmu.ttbcr.back = r(t);
-    } else if (crn == 2 and opc1 == 0 and crm == 0 and opc2 == 0) {
-      mem.mmu.ttbr0.back = r(t);
-    } else if (crn == 2 and opc1 == 0 and crm == 0 and opc2 == 1) {
-      mem.mmu.ttbr1.back = r(t);
-    } else if (crn == 1 and opc1 == 0 and crm == 0 and opc2 == 0) {
-      mem.mmu.setsctrl(r(t));
-    } else if (crn == 7 and opc1 == 0 and crm == 14 and opc2 == 2) {
-    } else if (crn == 7 and opc1 == 0 and crm == 10 and opc2 == 5) {
-    } else if (crn == 7 and opc1 == 0 and crm == 10 and opc2 == 4) {
-    } else if (crn == 0 and opc1 == 2 and crm == 0 and opc2 == 0) {
-    } else if (crn == 7 and opc1 == 0 and crm == 5 and opc2 == 0) {
-    } else if (crn == 7 and opc1 == 0 and crm == 5 and opc2 == 6) {
-    } else if (crn == 10 and opc1 == 0 and crm == 2 and opc2 == 0) {
-    } else if (crn == 10 and opc1 == 0 and crm == 2 and opc2 == 1) {
-    } else if (crn == 7 and opc1 == 0 and crm == 5 and opc2 == 4) {
-    } else if (crn == 7 and opc1 == 0 and crm == 10 and opc2 == 1) {
-    } else if (crn == 7 and opc1 == 0 and crm == 14 and opc2 == 1) {
-    } else if (crn == 7 and opc1 == 0 and crm == 11 and opc2 == 1) {
-    } else if (crn == 7 and opc1 == 0 and crm == 5 and opc2 == 1) {
+    printf("c%d %d c%d %d\n", crn, opc1, crm, opc2);
+    
+    if(crn==1 and opc1 == 0 and crm == 0 and opc2 == 0) {
+      return mem.mmu.setsctrl(r(t));
+    }
+    
+    if(crn==12 and opc1 == 0 and crm == 0 and opc2 == 0) {
+      return vbar(r(t));
+    }
+    
+    if(crn==8 and opc1 == 0 and crm == 7 and opc2 == 0) {
+      // Invalidate entire unified TLB 
+      return;
+    }
+    
+    if(crn==7 and opc1 == 0 and crm == 5 and opc2 == 0) {
+      // Instruction cache invalidate all 
+      return;
     }
 
-    else if (crn == 9 and opc1 == 0 and crm == 12 and opc2 == 0) {
-    } else if (crn == 9 and opc1 == 0 and crm == 12 and opc2 == 2) {
-    } else if (crn == 9 and opc1 == 0 and crm == 14 and opc2 == 2) {
-    } else if (crn == 13 and opc1 == 0 and crm == 0 and opc2 == 1) {
-    } else if (crn == 8 and opc1 == 0 and crm == 7 and opc2 == 1) {
-    } else if (crn == 8 and opc1 == 0 and crm == 7 and opc2 == 2) {
-    } else if (crn == 8 and opc1 == 0 and crm == 7 and opc2 == 0) {
-    } else if (crn == 3 and opc1 == 0 and crm == 0 and opc2 == 0) {
-      // TODO
-    } else
-      assert("write unimplemented cp15 reg\n" == nullptr);
+    if(crn==7 and opc1 == 0 and crm == 5 and opc2 == 6) {
+      // Branch predictor invalidate all 
+      return;
+    }
+
+    assert("write unimplemented cp15 reg\n" == nullptr);
   }
 
   void cp15getWord() {
@@ -669,32 +704,21 @@ struct Cpu {
     u8 crn = (cur >> 16) & 0xf;
     u8 opc1 = (cur >> 21) & 7;
 
+    // c1 0 c0 0
+
+    printf("c%d %d c%d %d\n", crn, opc1, crm, opc2);
+
+    if(crn==1 and opc1 == 0 and crm == 0 and opc2 == 0) {
+      return r(t, mem.mmu.sctrl.back);
+    }
+    
+    if(crn==0 and opc1 == 0 and crm == 0 and opc2 == 0) {
+      return r(t, MIDR);
+    }
+
     // printf("mrc p15 %d, r%d, c%d, c%d, %d\n", opc1, t, crn, crm, opc2);
 
-    if (crn == 13 and opc1 == 0 and crm == 0 and opc2 == 3) {
-      r(t, user_tls);
-    } else if (crn == 2 and opc1 == 0 and crm == 0 and opc2 == 2) {
-      r(t, mem.mmu.ttbcr.back);
-    } else if (crn == 2 and opc1 == 0 and crm == 0 and opc2 == 0) {
-      r(t, mem.mmu.ttbr0.back);
-    } else if (crn == 2 and opc1 == 0 and crm == 0 and opc2 == 1) {
-      r(t, mem.mmu.ttbr1.back);
-    } else if (crn == 1 and opc1 == 0 and crm == 0 and opc2 == 0) {
-      r(t, mem.mmu.sctrl.back);
-    } else if (crn == 0 and opc1 == 0 and crm == 0 and opc2 == 0) {
-      r(t, 0x410fc090);
-    } else if (crn == 0 and opc1 == 0 and crm == 1 and opc2 == 4) {
-      r(t, 0x100103);
-    } else if (crn == 0 and opc1 == 0 and crm == 1 and opc2 == 5) {
-      r(t, 0x20000000);
-    } else if (crn == 0 and opc1 == 1 and crm == 0 and opc2 == 1) {
-      r(t, 0x9000003);
-    } else if (crn == 0 and opc1 == 0 and crm == 0 and opc2 == 1) {
-      r(t, 0x80038003);
-    } else if (crn == 0 and opc1 == 1 and crm == 0 and opc2 == 0) {
-      r(t, 0xe00fe019);
-    } else
-      assert("read unimplemented cp15 reg\n" == nullptr);
+    assert("read unimplemented cp15 reg\n" == nullptr);
   }
 
   inline u32 mcr() {
@@ -893,19 +917,19 @@ struct Cpu {
   inline u32 svc() {
     if (cnd()) {
       doSysCall();
-      //ireturn callSuperVisor(cur);
+      // ireturn callSuperVisor(cur);
     }
     return nxt();
   }
 
   inline u32 blxReg() {
-    if(cnd()) {
+    if (cnd()) {
       u32 target = r(cur);
-      r(14, pc()-4);
+      r(14, pc() - 4);
       u32 ptr = bxWritePc(target);
-      if(currInstrSet()!=InstrSet::arm){
+      if (currInstrSet() != InstrSet::arm) {
         printf("ptr: %x target: %x\n", ptr, target);
-      assert(currInstrSet()==InstrSet::arm);
+        assert(currInstrSet() == InstrSet::arm);
       }
       return ptr;
     }
@@ -915,7 +939,7 @@ struct Cpu {
   inline u32 bx() {
     if (cnd()) {
       u32 ptr = bxWritePc(r(cur));
-      assert(currInstrSet()==InstrSet::arm);
+      assert(currInstrSet() == InstrSet::arm);
       return ptr;
     }
     return nxt();
@@ -1550,7 +1574,7 @@ struct Cpu {
   inline u32 ldrImm() {
     if (cnd()) {
       u8 t = (cur >> 12) & 0xf;
-      u8 n = (cur >> 16)&0xf;
+      u8 n = (cur >> 16) & 0xf;
       bool index = cbit(24);
       bool add = cbit(23);
       bool wback = !index or cbit(21);

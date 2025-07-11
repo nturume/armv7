@@ -50,15 +50,20 @@ struct Region {
 
 struct InvalidRegion : std::exception {
   u32 address;
-  InvalidRegion(u32 addr) : address(addr){};
+  u32 byread;
+  
+  InvalidRegion(u32 addr, bool by) : address(addr), byread(by){};
 };
 
 struct Ram {
   u8 *buf;
   u32 len;
   u32 start;
+  bool noalloc;
 
-  Ram(u32 start, u32 len) : len(len), start(start) { buf = new u8[len + 8]; }
+  Ram(u32 start, u32 len, bool nl = false) : len(len), start(start), noalloc(nl) { 
+    buf = nl ? nullptr : new u8[len + 8]; 
+  }
 
   u32 r32(u32 pos) {
     u32 v = *reinterpret_cast<u32 *>(&buf[pos]);
@@ -78,6 +83,9 @@ struct Ram {
   u32 offt(u32 vaddr) { return vaddr - start; }
 
   static u32 read(u32 addr, u8 width, Ram *ctx) {
+    if(ctx->noalloc) {
+      return 0xffffffff;
+    }
     u32 offt = ctx->offt(addr);
     // if(addr>=0x400fef40 and addr<(0x400fef40+4)){
     //   printf("    ------> reading [offt %x] width: %d\n", offt, width);
@@ -101,14 +109,17 @@ struct Ram {
   }
 
   static void write(u32 addr, u32 value, u8 width, Ram *ctx) {
+    assert(!ctx->noalloc);
     u32 offt = ctx->offt(addr);
-    if(addr>=0x400210 and addr<(0x400210+0xb)){
-      printf("    ------> writing %c [offt %x] width: %d\n", value,offt, width);
-       // assert(false);
-       fgetc(stdin);
+    if (addr >= 0x400feea8 and addr < (0x400feea8 + 0xb)) {
+      printf("    ------> writing %c [offt %x] width: %d\n", value, offt,
+             width);
+      // assert(false);
+      fgetc(stdin);
     }
     // if(addr>=0x400fef44 and addr<(0x400fef44+4)){
-    //   printf("    ------> writing %x [offt %x] width: %d\n", value,offt, width);
+    //   printf("    ------> writing %x [offt %x] width: %d\n", value,offt,
+    //   width);
     //    // assert(false);
     //    // fgetc(stdin);
     // }
@@ -148,6 +159,15 @@ struct Ram {
     assert(f.read(buf + load_addr, ph->p_filesz) == ph->p_filesz);
   }
 
+  void loadBin(u32 at, FILE *bin) {
+    u32 loadaddr = offt(at);
+    FileReader f(bin);
+    u64 binlen = f.getFileSize();
+    assert((binlen + loadaddr) <= len);
+    f.seekTo(0);
+    assert(f.read(buf + loadaddr, binlen) == binlen);
+  }
+
   u32 loadArgs(const i8 *argv[], const i8 *envp[]) {
     std::vector<u32> argvptrs = {};
     std::vector<u32> envpptrs = {};
@@ -177,15 +197,15 @@ struct Ram {
     load_vaddr = alignB(load_vaddr, 4);
 
     u32 argc = argvptrs.size();
-    
-    {//16 random bytes
+
+    { // 16 random bytes
       load_addr -= 16;
       load_vaddr -= 16;
     }
 
     u32 random_pointer = load_vaddr;
-    
-    {//auxv null term
+
+    { // auxv null term
       load_addr -= 4;
       load_vaddr -= 4;
       *reinterpret_cast<u32 *>(load_addr) = 0;
@@ -194,8 +214,8 @@ struct Ram {
       *reinterpret_cast<u32 *>(load_addr) = AT_NULL;
       printf("    *****AUX NULL at: %x\n", load_vaddr);
     }
-    
-    {//auxv random
+
+    { // auxv random
       load_addr -= 4;
       load_vaddr -= 4;
       *reinterpret_cast<u32 *>(load_addr) = random_pointer;
@@ -205,18 +225,18 @@ struct Ram {
       printf("    *****AUX RANDOM at: %x\n", load_vaddr);
     }
 
-    {//envp null term
+    { // envp null term
       load_addr -= 4;
       load_vaddr -= 4;
       *reinterpret_cast<u32 *>(load_addr) = 0;
     }
-    
+
     for (; envpptrs.size(); envpptrs.pop_back()) {
       load_addr -= 4;
       load_vaddr -= 4;
       *reinterpret_cast<u32 *>(load_addr) = envpptrs.back();
     }
-    {//argv null term
+    { // argv null term
       load_addr -= 4;
       load_vaddr -= 4;
       *reinterpret_cast<u32 *>(load_addr) = 0;
@@ -294,9 +314,9 @@ struct Memory {
 
   Ram *newRam(u32 start, u32 len) {
     printf("  new region start: 0x%x len: 0x%x\n", start, len);
-    u32 end = start+len;
+    u32 end = start + len;
     start = alignB(start, 4096);
-    len = alignF(end, 4096)-start;
+    len = alignF(end, 4096) - start;
     printf("  new region start: 0x%x len: 0x%x\n", start, len);
     Ram *r = new Ram(start, len);
     rams.push_back(r);
@@ -308,19 +328,19 @@ struct Memory {
   }
 
   Ram *allocRandom(u32 len) {
-    u32 pages = (len/4096)+1;
+    u32 pages = (len / 4096) + 1;
     u32 gap = 0;
     u32 s = 1024;
-    for(u32 i = 1024; i < bitset.size() and gap < pages; i++) {
-      if(!bitset[i]) {
-        gap+=1;
+    for (u32 i = 1024; i < bitset.size() and gap < pages; i++) {
+      if (!bitset[i]) {
+        gap += 1;
       } else {
-        s = i+1;
+        s = i + 1;
         gap = 0;
       }
     }
-    if(gap == pages) {
-      return newRam(s*4096, len);
+    if (gap == pages) {
+      return newRam(s * 4096, len);
     }
     return nullptr;
   }
@@ -332,7 +352,7 @@ struct Memory {
         return region->ptr(addr, region->ctx);
       }
     }
-    throw InvalidRegion(addr);
+    throw InvalidRegion(addr, true);
   }
 
   void writeRegion(u32 addr, u32 value, u8 width) {
@@ -342,7 +362,7 @@ struct Memory {
         return region->write(addr, value, width, region->ctx);
       }
     }
-    throw InvalidRegion(addr);
+    throw InvalidRegion(addr, false);
   }
 
   u32 readRegion(u32 addr, u8 width) {
@@ -352,7 +372,7 @@ struct Memory {
         return region->read(addr, width, region->ctx);
       }
     }
-    throw InvalidRegion(addr);
+    throw InvalidRegion(addr, true);
   }
 
   Region *findRegion(u32 addr, u32 width) {
@@ -384,6 +404,16 @@ struct Memory {
       }
       ram->loadElf(&ph, it.file);
     }
+  }
+
+  void loadBin(u32 at, const i8 *path) {
+    FILE *bin = fopen(path, "r");
+    FileReader f(bin);
+    Region *region = findRegion(at, f.getFileSize());
+    assert(region);
+    Ram *ram = (Ram *)region->ctx;
+    ram->loadBin(at, bin);
+    f.close();
   }
 
   struct MMU {
