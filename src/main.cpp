@@ -11,9 +11,15 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include "sp810.hpp"
+#include "sp804.hpp"
+#include "flash.hpp"
+#include "mmc.hpp"
+#include "lan9118.hpp"
 
 #define UBOOT_BASE 0x60800000
 #define HIGMEM_BASE 0x60000000
+// #define HIGMEM2_BASE 0x70000000
 #define FLASH1_BASE 0x40000000
 #define FLASH2_BASE 0x44000000
 
@@ -24,8 +30,26 @@ int main(int argc, const char *argv[], const char *envp[]) {
   c.mem.bitset.reset();
   assert(!c.mem.bitset.any());
 
-  c.mem.newRam(FLASH2_BASE, 64*1024*1024);
-  c.mem.newRam(HIGMEM_BASE, 16*1024*1024); //16M ram
+  Flash flash1(64*1024*1024);
+  Flash flash2(64*1024*1024);
+
+  c.mem.addRegion(flash1.getRegion(FLASH1_BASE));
+  c.mem.addRegion(flash2.getRegion(FLASH2_BASE));
+  
+  c.mem.newRam(HIGMEM_BASE, 1024*1024*1024); //16M ram
+  // c.mem.newRam(HIGMEM2_BASE, 256*1024*1024); //16M ram
+
+  SP810 sp810;
+  PL011 uart0;
+  SP804 timer01;
+  PL180 pl180;
+  LAN9118 eth;
+  
+  c.mem.addRegion(sp810.getRegion(0x10001000));
+  c.mem.addRegion(uart0.getRegion(0x10009000));
+  c.mem.addRegion(timer01.getRegion(0x10011000));
+  c.mem.addRegion(pl180.getRegion(0x10005000));
+  c.mem.addRegion(eth.getRegion(0x4e000000));
   
 
   c.mem.loadBin(UBOOT_BASE,"/home/m/Desktop/u-boot-2025.07/u-boot.bin");
@@ -101,8 +125,8 @@ int main(int argc, const char *argv[], const char *envp[]) {
       // if(count==10)break;
       u32 word = c.mem.a32u(c.pcReal());
       // if(word==prev) count+=1; else count=0;
-      // printf("%x %x ", c.pcReal(), c.sp());
-      // c.disasm(c.pcReal(), word);
+      // printf("                          %x\n", c.pcReal());
+      if(c.disasmode) c.disasm(c.pcReal(), word);
       // Decoder::printInstr(Decoder::decode(word, c.currInstrSet()));
       u32 pc = c.exec(word);
       // prev = word;
@@ -128,16 +152,25 @@ int main(int argc, const char *argv[], const char *envp[]) {
     //   }
     // }
 
-    if (c.pcReal() == 0x52e84 or step_mode) {
-      step_mode = true;
-      c.printRegisters();
-      fgetc(stdin);
-    }
+    // if (c.pcReal()==0x7ffc27e8 or step_mode) {
+    //   step_mode = true;
+    //   c.disasmode = true;
+    //   c.printRegisters();
+    //   c.dbgStack(0,10);
+    //   fgetc(stdin);
+    // }
 
     // 400210
     // 400feea8
 
     count += 1;
+
+    if((count&0xfff)) {
+      bool t1 = timer01.tick1();
+      bool t2 = timer01.tick2();
+
+      assert(!t1 and !t2);
+    }
   }
 }
 

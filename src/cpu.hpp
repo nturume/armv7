@@ -75,6 +75,8 @@ struct Cpu {
   //===========to remove
   u32 user_tls = 0;
 
+  bool disasmode = false;
+
   u32 vbar() {
     return __vbar;
   }
@@ -548,6 +550,21 @@ struct Cpu {
     pclose(out);
   }
 
+  void enterdisas() {
+    disasmode = true;
+  } 
+
+  void leavedisas() {
+    disasmode = false;
+  }
+
+  void dbgStack(u32 depth, u32 words = 1) {
+    assert(!(depth&0b11));
+    for(u32 i = 0; i < words; i++) {
+      printf("  [SP+%d] = %x\n", depth+(i*4), mem.a32u(sp()+depth+(i*4)));
+    }
+  }
+
   u32 exec(u32 word);
   u32 x(const char *prog);
 
@@ -669,7 +686,6 @@ struct Cpu {
     u8 crn = (cur >> 16) & 0xf;
     u8 opc1 = (cur >> 21) & 7;
 
-    printf("c%d %d c%d %d\n", crn, opc1, crm, opc2);
     
     if(crn==1 and opc1 == 0 and crm == 0 and opc2 == 0) {
       return mem.mmu.setsctrl(r(t));
@@ -693,7 +709,13 @@ struct Cpu {
       // Branch predictor invalidate all 
       return;
     }
+    
+    if(crn==7 and opc1 == 0 and crm == 14 and opc2 == 1) {
+      // Data cache clean and invalidate by MVA
+      return;
+    }
 
+    printf("c%d %d c%d %d\n", crn, opc1, crm, opc2);
     assert("write unimplemented cp15 reg\n" == nullptr);
   }
 
@@ -706,7 +728,6 @@ struct Cpu {
 
     // c1 0 c0 0
 
-    printf("c%d %d c%d %d\n", crn, opc1, crm, opc2);
 
     if(crn==1 and opc1 == 0 and crm == 0 and opc2 == 0) {
       return r(t, mem.mmu.sctrl.back);
@@ -715,7 +736,12 @@ struct Cpu {
     if(crn==0 and opc1 == 0 and crm == 0 and opc2 == 0) {
       return r(t, MIDR);
     }
+    
+    if(crn==0 and opc1 == 1 and crm == 0 and opc2 == 0) {
+      return r(t, 0);//B4.1.19 CCSIDR, Cache Size ID Registers, VMSA
+    }
 
+    printf("c%d %d c%d %d\n", crn, opc1, crm, opc2);
     // printf("mrc p15 %d, r%d, c%d, c%d, %d\n", opc1, t, crn, crm, opc2);
 
     assert("read unimplemented cp15 reg\n" == nullptr);
@@ -1057,7 +1083,7 @@ struct Cpu {
       u32 address = r(n) - 4 * bitcount;
       for (u8 i = 0; i < 15; i++) {
         if (registers & 1) {
-          r(i, mem.a32a(address));
+          mem.a32a(address, r(i));
           address += 4;
         }
         registers >>= 1;
@@ -1111,7 +1137,7 @@ struct Cpu {
       u32 address = r(n) + 4;
       for (u8 i = 0; i < 15; i++) {
         if (registers & 1) {
-          r(i, mem.a32a(address));
+          mem.a32a(address, r(i));
           address += 4;
         }
         registers >>= 1;

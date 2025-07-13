@@ -2,8 +2,6 @@
 #include "mem.hpp"
 #include <cstdio>
 
-namespace UART {
-
 struct PL011 {
 
   enum class OFFT : u32 {
@@ -61,12 +59,10 @@ struct PL011 {
 
   u8 fract_baud;
   u16 int_baud;
-  
+
   u8 tx_fifo[32];
 
-  void reset() {
-    *this = {};
-  }
+  void reset() { *this = {}; }
 
   u32 getUARTFR() {
     return UARTFR{
@@ -83,29 +79,27 @@ struct PL011 {
   }
 
   u32 getUARTLCR_H() {
-    if(enable_fifos) {
-      return u32(1)<<4;
+    if (enable_fifos) {
+      return u32(1) << 4;
     }
     return 0;
   }
 
   u32 getUARTCR() {
     u32 res = 0;
-    if(rx_enabled) {
-      res |= (1<<9);
+    if (rx_enabled) {
+      res |= (1 << 9);
     }
-    if(tx_enabled) {
-      res |= (1<<8);
+    if (tx_enabled) {
+      res |= (1 << 8);
     }
-    if(uart_en) {
+    if (uart_en) {
       res |= 1;
     }
     return res;
   }
 
-  void lineCtl(u32 lcr) {
-    enable_fifos = (lcr>>4)&1;
-  }
+  void lineCtl(u32 lcr) { enable_fifos = (lcr >> 4) & 1; }
 
   inline void enable() { uart_en = true; }
 
@@ -162,14 +156,13 @@ struct PL011 {
     }
   }
 
-  
   void control(u32 cr) {
-    uart_en = cr&1;
-    if(uart_en) {
+    uart_en = cr & 1;
+    if (uart_en) {
       reset();
     }
-    rx_enabled = (cr>>9)&1;
-    tx_enabled = (cr>>8)&1;
+    rx_enabled = (cr >> 9) & 1;
+    tx_enabled = (cr >> 8) & 1;
   }
 
   void printTxState() {
@@ -180,11 +173,67 @@ struct PL011 {
       printf("[%d] %d\n", i, tx_fifo[i]);
     }
   }
+  
+  static u32 read(u32 addr, u8 width, void *ctx) {
+    PL011 *uart = (PL011 *)ctx;
+    u32 offset = addr & 0xfff;
+    // printf("UART was read!!!! width: %d %x\n", width, offset);
+    switch (PL011::OFFT(offset)) {
+    case PL011::OFFT::UARTECR:{
+        // static u32 counterfeit = 0;
+        // printf("     counterfeit: %d\n", counterfeit++); 
+       return 0; 
+      }
+    case PL011::OFFT::UARTFR:
+      return uart->getUARTFR();
+    case PL011::OFFT::UARTIBRD:
+      return uart->int_baud;
+    case PL011::OFFT::UARTFBRD:
+      return uart->fract_baud;
+    case PL011::OFFT::UARTLCL_H:
+      return uart->getUARTLCR_H();
+    case PL011::OFFT::UARTCR:
+      return uart->getUARTCR();
+    default:
+      printf("Unhandled uart read offset: %d\n", offset);
+      exit(1);
+    }
+    return 0;
+  }
+
+  static void write(u32 addr, u32 value, u8 width, void *ctx) {
+    // printf("UART was written!!! width: %d\n", width);
+    PL011 *uart = (PL011 *)ctx;
+    u32 offset = addr & 0xfff;
+
+    switch (PL011::OFFT(offset)) {
+    case PL011::OFFT::UARTDR:
+      return uart->writeDR(value);
+    case PL011::OFFT::UARTECR:
+      break;
+    case PL011::OFFT::UARTIBRD:
+      uart->int_baud = value;
+      break;
+    case PL011::OFFT::UARTFBRD:
+      uart->fract_baud = value;
+      break;
+    case PL011::OFFT::UARTLCL_H:
+      return uart->lineCtl(value);
+    case PL011::OFFT::UARTCR:
+      return uart->control(value);
+    default:
+      printf("Unhandled uart write offset: %d\n", offset);
+      exit(1);
+    }
+  }
+
+  Region getRegion(u32 start) {
+    return {
+        .start = start,
+        .len = 0x1000,
+        .ctx = this,
+        .r = (u32(*)(u32, u8, void *))&read,
+        .w = (void(*)(u32, u32, u8, void *))&write,
+    };
+  }
 };
-
-u32 read(u32 addr, u8 width);
-
-void write(u32 addr, u32 value, u8 width);
-
-Region getRegion();
-}; // namespace UART

@@ -82,11 +82,8 @@ struct Ram {
 
   u32 offt(u32 vaddr) { return vaddr - start; }
 
-  static u32 read(u32 addr, u8 width, Ram *ctx) {
-    if(ctx->noalloc) {
-      return 0xffffffff;
-    }
-    u32 offt = ctx->offt(addr);
+  static u32 read(u32 offt, u8 width, Ram *ctx) {
+    // u32 offt = ctx->offt(addr);
     // if(addr>=0x400fef40 and addr<(0x400fef40+4)){
     //   printf("    ------> reading [offt %x] width: %d\n", offt, width);
     //    // assert(false);
@@ -108,15 +105,14 @@ struct Ram {
     assert("bad read" == nullptr);
   }
 
-  static void write(u32 addr, u32 value, u8 width, Ram *ctx) {
-    assert(!ctx->noalloc);
-    u32 offt = ctx->offt(addr);
-    if (addr >= 0x400feea8 and addr < (0x400feea8 + 0xb)) {
-      printf("    ------> writing %c [offt %x] width: %d\n", value, offt,
-             width);
-      // assert(false);
-      fgetc(stdin);
-    }
+  static void write(u32 offt, u32 value, u8 width, Ram *ctx) {
+    // u32 offt = ctx->offt(addr);
+    // if (addr >= 0x400feea8 and addr < (0x400feea8 + 0xb)) {
+    //   printf("    ------> writing %c [offt %x] width: %d\n", value, offt,
+    //          width);
+    //   // assert(false);
+    //   fgetc(stdin);
+    // }
     // if(addr>=0x400fef44 and addr<(0x400fef44+4)){
     //   printf("    ------> writing %x [offt %x] width: %d\n", value,offt,
     //   width);
@@ -263,6 +259,10 @@ struct Memory {
   std::bitset<1048576> bitset = {};
   u32 program_end = 0;
 
+  void addRegion(Region r) {
+    regions.push_back(r);
+  }
+
   void assertNotUsed(u32 start, u32 len) {
     assert(start % 4096 == 0);
     assert(len % 4096 == 0);
@@ -359,7 +359,7 @@ struct Memory {
     for (u32 i = 0; i < regions.size(); i++) {
       Region *region = regions.data() + i;
       if (region->has(addr)) {
-        return region->write(addr, value, width, region->ctx);
+        return region->write(addr-region->start, value, width, region->ctx);
       }
     }
     throw InvalidRegion(addr, false);
@@ -369,7 +369,7 @@ struct Memory {
     for (u32 i = 0; i < regions.size(); i++) {
       Region *region = regions.data() + i;
       if (region->has(addr)) {
-        return region->read(addr, width, region->ctx);
+        return region->read(addr-region->start, width, region->ctx);
       }
     }
     throw InvalidRegion(addr, true);

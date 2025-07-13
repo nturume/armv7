@@ -455,13 +455,15 @@ u32 Cpu::exec(u32 word) {
   case Instr::pldReg:
     return nxt();
   case Instr::wfi:
-    printf("==== WFI ====\n");
-    exit(0);
+    leavedisas();
+    return nxt();
   case Instr::wfe:
-    printf("==== WFE ====\n");
-    exit(0);
+    enterdisas();
+    return nxt();
+  case Instr::yield:
+    return nxt();
   default:
-    printf("unhandled instruction: ");
+    printf("unhandled instruction at 0x%x ", pcReal());
     Decoder::printInstr(instr);
     abort();
   }

@@ -57,9 +57,9 @@ void write(u32 addr, u32 value, u8 width, void *ctx) {
   }
 }
 
-Region getRegion() {
+Region getRegion(u32 start) {
   return {
-      .start = 0x80009000,
+      .start = start,
       .len = 0x1000,
       .r = &read,
       .w = &write,
