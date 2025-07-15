@@ -268,11 +268,11 @@ struct Memory {
     assert(len % 4096 == 0);
     u32 pages = len / 4096;
     u32 start_page = start / 4096;
-    printf("  ..checking if used from %d + %d pages\n", start_page, pages);
+    // printf("  ..checking if used from %d + %d pages\n", start_page, pages);
     assert(start_page + pages < bitset.size());
     for (u32 i = 0; i < pages; i++) {
       if (bitset[start_page + i]) {
-        printf("  [%d] Found set\n", start_page + i);
+        // printf("  [%d] Found set\n", start_page + i);
       }
       assert(!bitset[start_page + i]);
     }
@@ -283,7 +283,7 @@ struct Memory {
     assert(len % 4096 == 0);
     u32 pages = len / 4096;
     u32 start_page = start / 4096;
-    printf("  ..checking if used from %d + %d pages\n", start_page, pages);
+    // printf("  ..checking if used from %d + %d pages\n", start_page, pages);
     assert(start_page + pages < bitset.size());
     for (u32 i = 0; i < pages; i++) {
       assert(bitset[start_page + i]);
@@ -294,7 +294,7 @@ struct Memory {
     assertNotUsed(start, len);
     u32 pages = len / 4096;
     u32 start_page = start / 4096;
-    printf("  ..marking as used from %d + %d pages\n", start_page, pages);
+    // printf("  ..marking as used from %d + %d pages\n", start_page, pages);
     assert(start_page + pages < bitset.size());
     for (u32 i = 0; i < pages; i++) {
       bitset[start_page + i] = 1;
@@ -305,7 +305,7 @@ struct Memory {
     assertUsed(start, len);
     u32 pages = len / 4096;
     u32 start_page = start / 4096;
-    printf("  ..marking as used from %d + %d pages\n", start_page, pages);
+    // printf("  ..marking as used from %d + %d pages\n", start_page, pages);
     assert(start_page + pages < bitset.size());
     for (u32 i = 0; i < pages; i++) {
       bitset[start_page + i] = 0;
@@ -313,11 +313,11 @@ struct Memory {
   }
 
   Ram *newRam(u32 start, u32 len) {
-    printf("  new region start: 0x%x len: 0x%x\n", start, len);
+    // printf("  new region start: 0x%x len: 0x%x\n", start, len);
     u32 end = start + len;
     start = alignB(start, 4096);
     len = alignF(end, 4096) - start;
-    printf("  new region start: 0x%x len: 0x%x\n", start, len);
+    // printf("  new region start: 0x%x len: 0x%x\n", start, len);
     Ram *r = new Ram(start, len);
     rams.push_back(r);
     Region region = r->getRegion();

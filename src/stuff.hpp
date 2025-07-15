@@ -177,3 +177,14 @@ inline u8 bitcount16(u16 v) {
 inline u8 u5(u8 v) {
   return v&0b11111;
 }
+
+inline u32 swap32(u32 v) {
+  u32 res;
+  u8 *src = (u8*)&v;
+  u8 *dest = (u8*)&res;
+  dest[0] = src[3];
+  dest[1] = src[2];
+  dest[2] = src[1];
+  dest[3] = src[0];
+  return res;
+}

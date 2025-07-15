@@ -76,7 +76,6 @@ struct Flash {
     }
 
     if (ctx->mode == Mode::readstatus) {
-      ctx->setmode(Mode::read);
       return format(ctx->getstatus(), 1);
     }
 
@@ -242,6 +241,14 @@ struct Flash {
       switch (value & 0xff) {
       case 0xf0:
         return ctx->setmode(Mode::read);
+      }
+    }
+
+    
+    if (ctx->mode == Mode::readstatus) {
+      switch (value & 0xff) {
+      case 0x70:// nop
+        return;
       }
     }
 

@@ -52,7 +52,7 @@ struct Cpu {
   APSR apsr = {};
   SCR scr = {};
   // regs
-  u32 regs[15][32] = {0};
+  u32 regs[32][32] = {0};
   // spsr
   u32 spsr_svc;
   u32 spsr_abt;
