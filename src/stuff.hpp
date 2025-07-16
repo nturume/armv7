@@ -1,5 +1,6 @@
 
 #pragma once
+#include <cassert>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -67,6 +68,11 @@ struct FileReader {
       printf("FileReader::seekBy() failed.\n");
       std::exit(1);
     }
+    assert(ftell(f)==n);
+  }
+
+  u64 getPos() {
+    return ftell(f);
   }
   
   u32 getFileSize() {
@@ -174,6 +180,24 @@ inline u8 bitcount16(u16 v) {
   return bits;
 }
 
+inline u8 bitcount32(u32 v) {
+  u8 bits = 0;
+  while(v) {
+    bits += (v&1);
+    v >>= 1;
+  }
+  return bits;
+}
+
+inline u8 clz32(u32 v) {
+  u8 bits = 0;
+  while((v&1)==0 and bits<32) {
+    bits+=1;
+    v >>= 1;
+  }
+  return bits;
+}
+
 inline u8 u5(u8 v) {
   return v&0b11111;
 }
@@ -187,4 +211,13 @@ inline u32 swap32(u32 v) {
   dest[2] = src[1];
   dest[3] = src[0];
   return res;
+}
+
+static void swap8(u8 *buf, unsigned int len) {
+    u32 half = len/2;
+    for(u32 j  = 0; j < half; j++) {
+        u8 c = buf[j];
+        buf[j] = buf[len-j-1];
+        buf[len-j-1] = c;
+    }
 }

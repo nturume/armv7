@@ -15,6 +15,10 @@ struct FIFO {
   // bool _hfull = false;
   // bool _hempty = true;
 
+  void drain() {
+    *this = {};
+  }
+
   bool empty() {
     return _empty;
   }

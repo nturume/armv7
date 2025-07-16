@@ -3,7 +3,9 @@
 #include "fifo.hpp"
 #include "mem.hpp"
 #include "stuff.hpp"
+#include <algorithm>
 #include <cassert>
+#include <climits>
 #include <cstdio>
 #include <cstring>
 
@@ -20,19 +22,41 @@ struct PL180 {
         u32 CMD_SUPPORT : 5 = 0x1f;
         u32 _2 : 1 = 0;
         u32 SD_SPECX : 4 = 0;
+        // in 2
+
         u32 SD_SPEC4 : 1 = 0;
         u32 EX_SECURITY : 4 = 0;
         u32 SD_SPEC3 : 1 = 0;
+
         u32 SD_BUS_WIDTHS : 4 = 5;
         u32 SD_SECURITY : 3 = 0;
         u32 DATA_STAT_AFTER_ERASE : 1 = 0;
+
         u32 SD_SPEC : 4 = 0;
         u32 SCR_STRUCTURE : 4 = 0;
       } b = {};
-      u32 back[2];
+
+      static void pack(u32 *buf) {
+        SCR c;
+        u8 *b8 = (u8 *)buf;
+
+        b8[0] = c.b.SCR_STRUCTURE;
+        b8[1] = c.b.SD_BUS_WIDTHS;
+        b8[2] = 0;
+        b8[3] = 0;
+        b8[4] = 0;
+        b8[5] = 0;
+        b8[6] = 0;
+        b8[7] = 0;
+
+        buf[0] = swap32(buf[0]);
+        buf[1] = swap32(buf[1]);
+        buf[2] = swap32(buf[2]);
+        buf[3] = swap32(buf[3]);
+      }
     };
 
-    union CSD {
+    struct CSD {
 
       static u32 csize(u32 cap) {
         assert(cap % (512 * 1024) == 0);
@@ -51,62 +75,173 @@ struct PL180 {
         u32 FILE_FORMAT_GRP : 1 = 0;
         u32 _3 : 5 = 0;
         u32 WRITE_BL_PARTIAL : 1 = 0;
+
+        // out 1
         u32 WRITE_BL_LEN : 4 = 9;
-        u32 R2W_FACTOR : 3 = 0b10;
+        u32 R2W_FACTOR : 3 = 0b0;
         u32 _4 : 2 = 0;
+        // in 1
+
+        // out 1
         u32 WP_GRP_ENABLE : 1 = 0;
-        u32 WP_GRP_SIZE : 7 = 0x7f;
-        u32 SECTOR_SIZE : 7 = 0x7f;
+        u32 WP_GRP_SIZE : 7 = 0;
+        // in 1
+
+        // out 1
+        u32 SECTOR_SIZE : 7 = 0;
         u32 ERASE_BLK_EN : 1 = 1;
         //=====
         u32 C_SIZE_MULT : 3 = 3;
         u32 VDD_W_CURR_MAX : 3 = 0;
         u32 VDD_W_CURR_MIN : 3 = 0;
+
         u32 VDD_R_CURR_MAX : 3 = 0;
         u32 VDD_R_CURR_MIN : 3 = 0;
-        u32 C_SIZE : 12 = 2000;
+
+        u32 C_SIZE : 12 = 0xfff; // 2bits --->
         // 22
-        u32 _5 : 2 = 0;
+
+        u32 _5 : 2 = 0; // 6-2
         u32 DSR_IMP : 1 = 0;
         u32 READ_BLK_MISALIGN : 1 = 0;
         u32 WRITE_BLK_MISALIGN : 1 = 0;
         u32 READ_BL_PARTIAL : 1 = 1;
-        u32 READ_BL_LEN : 4 = 9;
-        u32 CCC : 12 = 0b10110110101;
+
+        u32 READ_BL_LEN : 4 = 9;      // 5
+        u32 CCC : 12 = 0b10110110101; // 4
         //====
-        u32 TRAN_SPEED : 8 = 0xff;
-        u32 NSAC : 8 = 0;
-        u32 TAAC : 8 = 0xe;
-        u32 CSD_STRUCTURE : 8 = 0;
+        u32 TRAN_SPEED : 8 = 0xff; // 3
+
+        u32 NSAC : 8 = 0; // 2
+
+        u32 TAAC : 8 = 0xe; // 1
+
+        u32 CSD_STRUCTURE : 8 = 0; // 0
       } b = {};
 
-      u32 back[4];
+      // capacity = ((C_SIZE+1) * (2.pow(C_SIZE_MULT+2)))
+      // * (512)
 
-      // CSD() { b.C_SIZE = 0; }
+      static u32 getmult(u32 imgsize) {
+        u32 csize = 0xfff + 1;
+        u32 blocklen = 512;
+
+        // imgsize = csize * mult * blocklen;
+        assert((imgsize % (csize * blocklen)) == 0);
+        u32 mult = imgsize / (csize * blocklen);
+        assert(bitcount32(mult) == 1);
+        mult = clz32(mult);
+        assert(mult > 1);
+        mult -= 2;
+        return mult;
+      }
+
+      static void pack(u32 *buf, u32 imgsize) {
+        CSD c;
+        c.b.C_SIZE_MULT = getmult(imgsize);
+        u8 *b8 = (u8 *)buf;
+
+        b8[0] = c.b.CSD_STRUCTURE;
+        b8[1] = c.b.TAAC;
+        b8[2] = c.b.NSAC;
+        b8[3] = c.b.TRAN_SPEED;
+        b8[4] = c.b.CCC >> 4;
+        b8[5] = ((c.b.CCC & 0xf) << 4) | c.b.READ_BL_LEN;
+
+        b8[6] = (0x80) | ((c.b.C_SIZE >> 10) & 0b11);
+        b8[7] = ((c.b.C_SIZE >> 2) & 0xff);
+        b8[8] = (u8(c.b.C_SIZE & 0b11) << 6);
+
+        b8[9] = ((c.b.C_SIZE_MULT >> 1));
+
+        b8[10] =
+            (u8(c.b.C_SIZE_MULT & 1) << 7) | (u8(c.b.ERASE_BLK_EN) << 6) | (0);
+
+        b8[11] = 0;
+        b8[12] = (c.b.WRITE_BL_LEN >> 2);
+        b8[13] = (u8(c.b.WRITE_BL_LEN & 0b11) << 6);
+        b8[14] = 0;
+        b8[15] = 0; // TODO crc
+
+        buf[0] = swap32(buf[0]);
+        buf[1] = swap32(buf[1]);
+        buf[2] = swap32(buf[2]);
+        buf[3] = swap32(buf[3]);
+      }
     };
 
     static_assert(sizeof(CSD) == 16, "");
 
+    struct CID {
+      struct __attribute__((packed)) {
+        u32 CRC : 8 = 0;
+        // --->
+        u32 MDT_M : 4 = 0x4;
+        // --->
+        u32 MDT_Y : 8 = 0x01;
+        // --->
+        u32 _1 : 4 = 0;
+        // --->
+        u32 PSN : 32 = 0xdeada55;
+        // --->
+        u32 PRV : 8 = 0xbe;
+        // --->
+        u8 PNM[5] = {'T', 'I', 'T', 'T', 'Y'};
+        // --->
+        u32 OID : 16 = 0x6967;
+        // --->
+        u32 MID : 8 = 0xba;
+      } b = {};
+
+      static void pack(u32 *buf) {
+        CID c;
+        u8 *b8 = (u8 *)buf;
+        b8[0] = c.b.MID;
+        b8[1] = c.b.OID >> 8;
+        b8[2] = c.b.OID & 0xff;
+        b8[3] = c.b.PNM[0];
+        b8[4] = c.b.PNM[1];
+        b8[5] = c.b.PNM[2];
+        b8[6] = c.b.PNM[3];
+        b8[7] = c.b.PNM[4];
+        b8[8] = c.b.PRV;
+        b8[9] = c.b.PSN >> 24;
+        b8[10] = c.b.PSN >> 16;
+        b8[11] = c.b.PSN >> 8;
+        b8[12] = c.b.PSN;
+        b8[13] = c.b.MDT_Y >> 8;
+        b8[14] = (c.b.MDT_Y << 4) | c.b.MDT_M;
+        b8[15] = 0; // TODO CRC
+
+        buf[0] = swap32(buf[0]);
+        buf[1] = swap32(buf[1]);
+        buf[2] = swap32(buf[2]);
+        buf[3] = swap32(buf[3]);
+      }
+    };
+
+    static_assert(sizeof(CID) == 16, "");
+
     enum class Cmd {
-      GO_IDLE_STATE = 0,
-      SEND_IF_COND = 8,
-      APP_CMD = 55,
-      ALL_SEND_CID = 2,
-      SEND_RELATIVE_ADDR = 3,
-      SEND_CSD = 9,
-      SELECT = 7,
-      SWITCH_FUNC = 6,
-      SET_BLOCKLEN = 16,
-      READ_SINGLE_BLOCK = 17,
-      READ_MULTIPLE_BLOCK = 18,
-      STOP_TRANSMISSION = 12,
+      GO_IDLE_STATE_0 = 0,
+      SEND_IF_COND_8 = 8,
+      APP_CMD_55 = 55,
+      ALL_SEND_CID_2 = 2,
+      SEND_RELATIVE_ADDR_3 = 3,
+      SEND_CSD_9 = 9,
+      SELECT_7 = 7,
+      SWITCH_FUNC_8 = 6,
+      SET_BLOCKLEN_16 = 16,
+      READ_SINGLE_BLOCK_17 = 17,
+      READ_MULTIPLE_BLOCK_18 = 18,
+      STOP_TRANSMISSION_12 = 12,
     };
 
     enum class AppCmd {
-      SD_SEND_OP_COND = 41,
-      SEND_SCR = 51,
-      SET_BUS_WIDTH = 6,
-      SD_STATUS = 13,
+      SD_SEND_OP_COND_41 = 41,
+      SEND_SCR_51 = 51,
+      SET_BUS_WIDTH_6 = 6,
+      SD_STATUS_13 = 13,
     };
 
     enum class State {
@@ -129,17 +264,26 @@ struct PL180 {
     i32 blockrem;
     u32 addr;
     bool readmultblocks;
+    FileReader imgreader;
+
+    SD(const char *imgpath = "/home/m/Documents/vdisk.img")
+        : imgreader(nullptr) {
+      FILE *f = fopen(imgpath, "rb+");
+      imgreader.f = f;
+
+      u32 imgsize = imgreader.getFileSize();
+      u32 mult = CSD::getmult(imgsize);
+      printf("===> IMG SIZE = %d mult = %d\n", imgsize, mult);
+    }
 
     bool select(u32 word) {
-      u16 rca = ((word >> 16) & 0xff);
-
       if (!stdbyOrTran()) {
         return false;
       }
 
-      if (rca == 1) {
+      if (word == 0x69680000) {
         state(State::tran);
-      } else if (rca == 0) {
+      } else if (word == 0) {
         state(State::stby);
       } else {
         return false;
@@ -154,7 +298,7 @@ struct PL180 {
       return _state == State::stby || _state == State::tran;
     }
 
-    bool ready() { return _state == State::ready || _state == State::tran; }
+    bool ready() { return _state != State::idle; }
 
     u32 getStatus() {
       u32 status = 0;
@@ -171,18 +315,36 @@ struct PL180 {
     void poll() {
       if (blockrem == 0 and !readmultblocks)
         return;
-      
-      if (blockrem == 0 and readmultblocks)
+
+      if (blockrem == 0 and readmultblocks and state() == State::data)
         blockrem = i32(blocklen);
 
+      if (state() != State::data) {
+        printf("BLOCK REM: %d\n", blockrem);
+        assert(false);
+      }
+
+      imgreader.seekTo(addr);
       for (; blockrem > 0 and !controller->_rxfifo.full();) {
-        controller->rxfifo(0);
+        union {
+          u32 back;
+          u8 array[4];
+        } tmp;
+        u32 r = imgreader.read(tmp.array, 4);
+        // tmp = swap32(tmp);
+         // printf("==============reading addr: %d (%ld) r=%d  [0x%x, 0x%x, 0x%x,0x%x]\n", addr , imgreader.getPos(), r, tmp.array[0], tmp.array[1], tmp.array[2],
+         // tmp.array[3]);
+        controller->rxfifo(tmp.back);
+        assert(r == 4);
         blockrem -= 4;
+        addr += 4;
       }
 
       if (blockrem == 0) {
         controller->cmdRespEnd();
         controller->dataBlockEnd();
+        if (!readmultblocks)
+          state(State::tran);
       }
 
       assert(blockrem >= 0);
@@ -191,24 +353,25 @@ struct PL180 {
     bool doAppCommand(u8 command, u32 arg, u32 *buf) {
       // printf("==========> app command: %d\n", command);
       switch (AppCmd(command)) {
-      case AppCmd::SD_SEND_OP_COND: {
+      case AppCmd::SD_SEND_OP_COND_41: {
         state(State::ready);
-        *buf = 0x81000000;
+        *buf = 0x80FFFF00;
         return true;
       }
-      case AppCmd::SEND_SCR: {
-        controller->rxfifo(swap32(SCR{}.back[1]));
-        controller->rxfifo(swap32(SCR{}.back[0]));
+      case AppCmd::SEND_SCR_51: {
+        SCR::pack(buf);
+        controller->rxfifo(swap32(buf[0]));
+        controller->rxfifo(swap32(buf[1]));
         controller->cmdRespEnd();
         controller->dataBlockEnd();
         *buf = getStatus();
         return true;
       }
-      case AppCmd::SET_BUS_WIDTH: {
+      case AppCmd::SET_BUS_WIDTH_6: {
         *buf = getStatus();
         return true;
       }
-      case AppCmd::SD_STATUS: {
+      case AppCmd::SD_STATUS_13: {
         *buf = getStatus();
         for (u32 i = 0; i < 16; i++) {
           controller->rxfifo(0);
@@ -224,77 +387,92 @@ struct PL180 {
     }
 
     bool doCommand(u8 command, u32 arg, u32 *buf) {
+      buf[0] = 0;
+      buf[1] = 0;
+      buf[2] = 0;
+      buf[3] = 0;
       if (expectapp) {
         expectapp = false;
         return doAppCommand(command, arg, buf);
       }
       // printf("==========> command: %d\n", command);
       switch (Cmd(command)) {
-      case Cmd::GO_IDLE_STATE: {
+      case Cmd::GO_IDLE_STATE_0: {
         state(State::idle);
         return true;
       }
-      case Cmd::SEND_IF_COND: {
+      case Cmd::SEND_IF_COND_8: {
         *buf = 1u << 8;
         *buf |= arg & 0xff;
         return true;
       }
-      case Cmd::APP_CMD: {
-        *buf = getStatus();
+      case Cmd::APP_CMD_55: {
         expectapp = true;
+        *buf = getStatus();
         return true;
       }
-      case Cmd::SEND_CSD: {
+      case Cmd::SEND_CSD_9: {
+        // printf("RCA: %x\n", arg);
+        assert(arg == 0x69680000);
         state(State::stby);
-        CSD csd;
-        buf[3] = csd.back[0];
-        buf[2] = csd.back[1];
-        buf[1] = csd.back[2];
-        buf[0] = csd.back[3];
+        CSD::pack(buf, imgreader.getFileSize());
         return true;
       }
-      case Cmd::ALL_SEND_CID: {
+      case Cmd::ALL_SEND_CID_2: {
         state(State::ident);
-        CSD csd;
-        // TODO
+        CID::pack(buf);
         return true;
       }
-      case Cmd::SEND_RELATIVE_ADDR: {
-        *buf = 0x100;
+      case Cmd::SEND_RELATIVE_ADDR_3: {
+        assert(state() == State::ident);
+        state(State::stby);
+        *buf = 0x69680000;
         return true;
       }
-      case Cmd::SELECT: {
+      case Cmd::SELECT_7: {
         bool done = select(arg);
         *buf = getStatus();
         return done;
       }
-      case Cmd::SET_BLOCKLEN: {
+      case Cmd::SET_BLOCKLEN_16: {
         blocklen = arg;
+        assert(blocklen == 512);
         // printf("NEW BLOCK LEN: %d\n", blocklen);
         *buf = getStatus();
         return true;
       }
-      case Cmd::READ_SINGLE_BLOCK: {
+      case Cmd::READ_SINGLE_BLOCK_17: {
+        assert(state() == State::tran);
+        assert(controller->_rxfifo.empty());
         readmultblocks = false;
         *buf = getStatus();
+        state(State::data);
         addr = arg;
         blockrem = i32(blocklen);
-        poll();
+        // printf("READ SINGLE: add = %d rem = %d\n", addr, blockrem);
+        // poll();
         return true;
       }
-      case Cmd::READ_MULTIPLE_BLOCK: {
+      case Cmd::READ_MULTIPLE_BLOCK_18: {
+        assert(state() == State::tran);
+        assert(controller->_rxfifo.empty());
         readmultblocks = true;
         *buf = getStatus();
+        state(State::data);
         addr = arg;
         blockrem = i32(blocklen);
-        poll();
+        // printf("READ MULT: add = %d rem = %d\n", addr, blockrem);
+        // poll();
         return true;
       }
-      case Cmd::STOP_TRANSMISSION: {
-          readmultblocks = false;
-          *buf = getStatus();
-          return true;
-        }
+      case Cmd::STOP_TRANSMISSION_12: {
+        // printf("        STOP TRANSMISSION: %d fifoempty? %d\n", u8(state()), controller->_rxfifo.empty()?1:0);
+        assert(state() == State::data);
+        readmultblocks = false;
+        *buf = getStatus();
+        state(State::tran);
+        return true;
+      }
       default:
         printf("Unhandled command: %d\n", command);
         assert(false);
@@ -344,13 +522,14 @@ struct PL180 {
   void dataCntDown(u32 amount = 4) {
     if (_datacnt == 0)
       return;
-    _datacnt -= amount;
+    u32 tmp = _datacnt - amount;
+    assert(tmp<_datacnt);
+    _datacnt = tmp;
     if (_datacnt == 0) {
       _status |= (1u << 8);
     } else {
       _status &= ~(1u << 8);
     }
-    // TODO check overflow
   }
 
   void txfifo(u32 v) {
@@ -358,7 +537,6 @@ struct PL180 {
       return;
     }
     _txfifo.write(v);
-    // _datacnt -= 1;
   }
 
   u32 txfifo() {
@@ -368,7 +546,11 @@ struct PL180 {
     }
     if (!tranFromCard())
       dataCntDown();
-    return _txfifo.read();
+    u32 data = _txfifo.read();
+    if(_datacnt == 0) {
+      _txfifo.drain();
+    }
+    return data;
   }
 
   void rxfifo(u32 v) {
@@ -386,7 +568,11 @@ struct PL180 {
     }
     if (tranFromCard())
       dataCntDown();
-    return _rxfifo.read();
+    u32 data = _rxfifo.read();
+    if(_datacnt == 0) {
+      _rxfifo.drain();
+    }
+    return data;
   }
 
   void datalen(u32 v) {
@@ -413,7 +599,8 @@ struct PL180 {
   bool dataTranEnabled() { return (dctl) & 1; }
 
   u32 status() {
-    sd.poll();
+    if (_datacnt > 0)
+      sd.poll();
 
     if (_txfifo.empty()) {
       _status |= (1u << 18);

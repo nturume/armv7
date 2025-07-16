@@ -161,6 +161,10 @@ int main(int argc, const char *argv[], const char *envp[]) {
     //   fgetc(stdin);
     // }
 
+    // if(c.disasmode) {
+      // c.printRegisters();
+    // }
+
     // 400210
     // 400feea8
 
