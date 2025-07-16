@@ -16,6 +16,7 @@
 #include "flash.hpp"
 #include "mmc.hpp"
 #include "lan9118.hpp"
+#include <thread>
 
 
 #define UBOOT_BASE 0x60800000
@@ -26,6 +27,7 @@
 
 int main(int argc, const char *argv[], const char *envp[]) {
   // Cpu::test();
+  Rubber<u8> rubber;
   // return 0;
   Cpu c;
   c.mem.bitset.reset();
@@ -67,6 +69,8 @@ int main(int argc, const char *argv[], const char *envp[]) {
   // c.apsr.b.m = u8(Cpu::Mode::user);
 
   // c.mem.regions.push_back(UART::getRegion());
+
+  std::thread t(PL011::rxgetc, &uart0);
 
   c.reset();
 

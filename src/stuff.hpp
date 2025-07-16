@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
+#include <mutex>
 
 using u8 = unsigned char;
 using u16 = unsigned short;
@@ -37,7 +38,7 @@ struct FileReader {
     }
     return read;
   }
-  
+
   u64 write(u8 *buf, u64 len) {
     u64 written = 0;
     while (written < len) {
@@ -62,19 +63,16 @@ struct FileReader {
     }
   }
 
-
   fn seekTo(i64 n) {
     if (fseek(f, n, SEEK_SET)) {
       printf("FileReader::seekBy() failed.\n");
       std::exit(1);
     }
-    assert(ftell(f)==n);
+    assert(ftell(f) == n);
   }
 
-  u64 getPos() {
-    return ftell(f);
-  }
-  
+  u64 getPos() { return ftell(f); }
+
   u32 getFileSize() {
     if (fseek(f, 0, SEEK_END)) {
       printf("FileReader::getFileSize() failed.\n");
@@ -85,9 +83,7 @@ struct FileReader {
     return size;
   }
 
-  void close () {
-    fclose(f);
-  }
+  void close() { fclose(f); }
 };
 
 inline u32 align4(u32 addr) { return addr & (u32(0xffffffff) << 2); }
@@ -95,11 +91,11 @@ inline u32 align4(u32 addr) { return addr & (u32(0xffffffff) << 2); }
 inline u32 align2(u32 addr) { return addr & (u32(0xffffffff) << 1); }
 
 inline size_t alignB(size_t addr, size_t target) {
-  return addr & ~(target-1);
+  return addr & ~(target - 1);
 }
 
 inline size_t alignF(size_t addr, size_t target) {
-  return alignB(addr-1, target) + target;
+  return alignB(addr - 1, target) + target;
 }
 
 inline i8 s8(u8 v) {
@@ -150,7 +146,6 @@ inline u64 uns64(i64 v) {
   return x.u;
 }
 
-
 inline u32 sx8(u8 v) {
   union {
     i8 i;
@@ -167,14 +162,12 @@ inline u32 sx16(u16 v) {
   return uns32(i32(x.i));
 }
 
-static inline i32 abs32(i32 v) {
-  return v>=0?v:-v;
-}
+static inline i32 abs32(i32 v) { return v >= 0 ? v : -v; }
 
 inline u8 bitcount16(u16 v) {
   u8 bits = 0;
-  while(v) {
-    bits += (v&1);
+  while (v) {
+    bits += (v & 1);
     v >>= 1;
   }
   return bits;
@@ -182,8 +175,8 @@ inline u8 bitcount16(u16 v) {
 
 inline u8 bitcount32(u32 v) {
   u8 bits = 0;
-  while(v) {
-    bits += (v&1);
+  while (v) {
+    bits += (v & 1);
     v >>= 1;
   }
   return bits;
@@ -191,21 +184,19 @@ inline u8 bitcount32(u32 v) {
 
 inline u8 clz32(u32 v) {
   u8 bits = 0;
-  while((v&1)==0 and bits<32) {
-    bits+=1;
+  while ((v & 1) == 0 and bits < 32) {
+    bits += 1;
     v >>= 1;
   }
   return bits;
 }
 
-inline u8 u5(u8 v) {
-  return v&0b11111;
-}
+inline u8 u5(u8 v) { return v & 0b11111; }
 
 inline u32 swap32(u32 v) {
   u32 res;
-  u8 *src = (u8*)&v;
-  u8 *dest = (u8*)&res;
+  u8 *src = (u8 *)&v;
+  u8 *dest = (u8 *)&res;
   dest[0] = src[3];
   dest[1] = src[2];
   dest[2] = src[1];
@@ -214,10 +205,34 @@ inline u32 swap32(u32 v) {
 }
 
 static void swap8(u8 *buf, unsigned int len) {
-    u32 half = len/2;
-    for(u32 j  = 0; j < half; j++) {
-        u8 c = buf[j];
-        buf[j] = buf[len-j-1];
-        buf[len-j-1] = c;
-    }
+  u32 half = len / 2;
+  for (u32 j = 0; j < half; j++) {
+    u8 c = buf[j];
+    buf[j] = buf[len - j - 1];
+    buf[len - j - 1] = c;
+  }
 }
+
+// #include <thread>
+
+template <typename T> struct Rubber {
+  T stuff;
+  std::mutex mut;
+
+  struct Wrap {
+    T *stuff;
+    std::mutex *mut;
+
+    Wrap(T *s, std::mutex *m) : stuff(s), mut(m) { mut->lock(); }
+
+    Wrap(const Wrap &) = delete;
+
+    T *get() { return stuff; }
+
+    ~Wrap() { mut->unlock(); }
+  };
+
+  Wrap bring() { return Wrap(&stuff, &mut); }
+
+  Rubber() { stuff = {}; }
+};

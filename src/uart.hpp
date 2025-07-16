@@ -1,5 +1,7 @@
 #pragma once
+#include "fifo.hpp"
 #include "mem.hpp"
+#include "stuff.hpp"
 #include <cstdio>
 
 struct PL011 {
@@ -48,31 +50,45 @@ struct PL011 {
 
   bool enable_fifos = false;
   bool tx_fen = false;
-  bool tx_full = false;
-  bool rx_full = false;
-  bool tx_empty = true;
+  // bool tx_full = false;
+  // bool rx_full = false;
+  // bool tx_empty = true;
   bool tx_enabled = true;
   bool rx_enabled = false;
   bool busy = false;
-  u8 tx_push_idx = 31;
-  u8 tx_pop_idx = 31;
+  // u8 tx_push_idx = 31;
+  // u8 tx_pop_idx = 31;
 
   u8 fract_baud;
   u16 int_baud;
 
-  u8 tx_fifo[32];
+  // u8 tx_fifo[32];
 
-  void reset() { *this = {}; }
+  FIFO<u8, 32> tx;
+
+  Rubber<FIFO<u8, 32>> rxr;
+
+  void reset() {
+    uart_en = true;
+    enable_fifos = false;
+    tx_fen = false;
+    tx_enabled = true;
+    rx_enabled = false;
+    busy = false;
+    rxr.bring().get()->drain();
+    tx.drain();
+  }
 
   u32 getUARTFR() {
+    auto * rx = rxr.bring().get();
     return UARTFR{
         .f =
             {
                 .busy = busy,
-                .rxfe = rx_enabled,
-                .txff = tx_full,
-                .rxff = rx_full,
-                .txfe = tx_enabled,
+                .rxfe = rx->empty(),
+                .txff = tx.full(),
+                .rxff = rx->full(),
+                .txfe = tx.empty(),
             },
     }
         .back;
@@ -105,44 +121,40 @@ struct PL011 {
 
   inline void disable() { uart_en = false; }
 
-  inline u8 decIdx(u8 idx) {
-    if (idx == 0)
-      return 31;
-    return idx - 1;
-  }
+  // inline u8 decIdx(u8 idx) {
+  //   if (idx == 0)
+  //     return 31;
+  //   return idx - 1;
+  // }
 
   inline void enableTxfifo() { tx_fen = true; }
 
   inline void disableTxfifo() { tx_fen = false; }
 
   void txPush(u8 data) {
-    if (tx_full) {
+    if (tx.full()) {
       return;
     }
-    tx_fifo[tx_push_idx] = data;
-    tx_push_idx = decIdx(tx_push_idx);
-    tx_empty = false;
-    if (tx_push_idx == tx_pop_idx or !tx_fen) {
-      tx_full = true;
-    }
+    tx.write(data);
   }
 
   u8 txPop() {
-    if (tx_empty) {
+    if (tx.empty()) {
       return 0;
     }
-    u8 data = tx_fifo[tx_pop_idx];
-    tx_pop_idx = decIdx(tx_pop_idx);
-    tx_full = false;
-    if (tx_pop_idx == tx_push_idx or !tx_fen) {
-      tx_empty = true;
-    }
+    u8 data = tx.read();
     return data;
   }
 
-  void tx() {
+  u8 rxPop() {
+    auto rx = rxr.bring().get();
+    // TODO check undeflow
+    return rx->read();
+  }
+
+  void txDrain() {
     busy = true;
-    while (!tx_empty) {
+    while (!tx.empty()) {
       printf("%c", txPop());
       fflush(stdout);
     }
@@ -151,8 +163,9 @@ struct PL011 {
 
   inline void writeDR(u32 dr) {
     if (tx_enabled and uart_en) {
+      // printf("%c", dr);
       txPush(dr);
-      tx();
+      txDrain();
     }
   }
 
@@ -165,25 +178,33 @@ struct PL011 {
     tx_enabled = (cr >> 8) & 1;
   }
 
-  void printTxState() {
-    printf("full: %d empty: %d pop:%d push: %d\n", tx_full, tx_empty,
-           tx_pop_idx, tx_push_idx);
-    printf("====================\n");
-    for (u8 i = 0; i < 32; i++) {
-      printf("[%d] %d\n", i, tx_fifo[i]);
+  static void rxgetc(PL011 *p) {
+    for (;;) {
+      u8 ch = fgetc(stdin);
+      printf("stdin: %c\n", ch);
+      p->rxr.bring().get()->write(ch);
     }
   }
-  
+
+  void printTxState() {
+    // printf("full: %d empty: %d pop:%d push: %d\n", tx_full, tx_empty,
+    //        tx_pop_idx, tx_push_idx);
+    // printf("====================\n");
+    // for (u8 i = 0; i < 32; i++) {
+    //   printf("[%d] %d\n", i, tx_fifo[i]);
+    // }
+  }
+
   static u32 read(u32 addr, u8 width, void *ctx) {
     PL011 *uart = (PL011 *)ctx;
     u32 offset = addr & 0xfff;
-    // printf("UART was read!!!! width: %d %x\n", width, offset);
+    // static u32 nnn = 0;
+    // printf("UART was read!!!! width: %d %d %u\n", width, offset, nnn++);
     switch (PL011::OFFT(offset)) {
-    case PL011::OFFT::UARTECR:{
-        // static u32 counterfeit = 0;
-        // printf("     counterfeit: %d\n", counterfeit++); 
-       return 0; 
-      }
+    case PL011::OFFT::UARTDR:
+      return uart->rxPop();
+    case PL011::OFFT::UARTECR:
+      return 0;
     case PL011::OFFT::UARTFR:
       return uart->getUARTFR();
     case PL011::OFFT::UARTIBRD:
@@ -232,8 +253,8 @@ struct PL011 {
         .start = start,
         .len = 0x1000,
         .ctx = this,
-        .r = (u32(*)(u32, u8, void *))&read,
-        .w = (void(*)(u32, u32, u8, void *))&write,
+        .r = (u32(*)(u32, u8, void *)) & read,
+        .w = (void (*)(u32, u32, u8, void *)) & write,
     };
   }
 };
