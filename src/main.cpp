@@ -27,7 +27,6 @@
 
 int main(int argc, const char *argv[], const char *envp[]) {
   // Cpu::test();
-  Rubber<u8> rubber;
   // return 0;
   Cpu c;
   c.mem.bitset.reset();
@@ -174,7 +173,7 @@ int main(int argc, const char *argv[], const char *envp[]) {
 
     count += 1;
 
-    if((count&0xfff)) {
+    if((count&0x7)==0) {
       bool t1 = timer01.tick1();
       bool t2 = timer01.tick2();
 

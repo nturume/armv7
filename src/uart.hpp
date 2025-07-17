@@ -2,7 +2,9 @@
 #include "fifo.hpp"
 #include "mem.hpp"
 #include "stuff.hpp"
+#include <chrono>
 #include <cstdio>
+#include <thread>
 
 struct PL011 {
 
@@ -66,7 +68,7 @@ struct PL011 {
 
   FIFO<u8, 32> tx;
 
-  Rubber<FIFO<u8, 32>> rxr;
+  SharedFIFO<u8, 32> rx;
 
   void reset() {
     uart_en = true;
@@ -75,19 +77,18 @@ struct PL011 {
     tx_enabled = true;
     rx_enabled = false;
     busy = false;
-    rxr.bring().get()->drain();
+    rx.drain();
     tx.drain();
   }
 
   u32 getUARTFR() {
-    auto * rx = rxr.bring().get();
     return UARTFR{
         .f =
             {
                 .busy = busy,
-                .rxfe = rx->empty(),
+                .rxfe = rx.empty(),
                 .txff = tx.full(),
-                .rxff = rx->full(),
+                .rxff = rx.full(),
                 .txfe = tx.empty(),
             },
     }
@@ -138,6 +139,10 @@ struct PL011 {
     tx.write(data);
   }
 
+  void rxPush(u8 data) {
+    rx.write(data);
+  }
+
   u8 txPop() {
     if (tx.empty()) {
       return 0;
@@ -147,9 +152,7 @@ struct PL011 {
   }
 
   u8 rxPop() {
-    auto rx = rxr.bring().get();
-    // TODO check undeflow
-    return rx->read();
+    return rx.read();
   }
 
   void txDrain() {
@@ -168,6 +171,14 @@ struct PL011 {
       txDrain();
     }
   }
+  
+  inline u32 readDR() {
+    // TODO fill other fields
+    if (rx_enabled and uart_en) {
+      return rxPop();
+    }
+    return 0xffffffff;
+  }
 
   void control(u32 cr) {
     uart_en = cr & 1;
@@ -181,8 +192,8 @@ struct PL011 {
   static void rxgetc(PL011 *p) {
     for (;;) {
       u8 ch = fgetc(stdin);
-      printf("stdin: %c\n", ch);
-      p->rxr.bring().get()->write(ch);
+      // printf("stdin: %c\n", ch);
+      p->rxPush(ch);
     }
   }
 
@@ -202,7 +213,7 @@ struct PL011 {
     // printf("UART was read!!!! width: %d %d %u\n", width, offset, nnn++);
     switch (PL011::OFFT(offset)) {
     case PL011::OFFT::UARTDR:
-      return uart->rxPop();
+      return uart->readDR();
     case PL011::OFFT::UARTECR:
       return 0;
     case PL011::OFFT::UARTFR:

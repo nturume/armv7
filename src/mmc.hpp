@@ -235,6 +235,8 @@ struct PL180 {
       READ_SINGLE_BLOCK_17 = 17,
       READ_MULTIPLE_BLOCK_18 = 18,
       STOP_TRANSMISSION_12 = 12,
+      WRITE_BLOCK_24 = 24,
+      SEND_STATUS_13 = 13,
     };
 
     enum class AppCmd {
@@ -264,6 +266,7 @@ struct PL180 {
     i32 blockrem;
     u32 addr;
     bool readmultblocks;
+    bool writemultblocks;
     FileReader imgreader;
 
     SD(const char *imgpath = "/home/m/Documents/vdisk.img")
@@ -312,16 +315,40 @@ struct PL180 {
       return status;
     }
 
+    void rcvStuff() {
+      imgreader.seekTo(addr);
+      while (!controller->_txfifo.empty() and blockrem > 0) {
+        union {
+          u32 back;
+          u8 array[4];
+        } tmp;
+        tmp.back = controller->txfifo();
+        u32 r = imgreader.write(tmp.array, 4);
+        assert(r == 4);
+        blockrem -= 4;
+        addr += 4;
+        if (blockrem == 0) {
+          controller->dataBlockEnd();
+          if (writemultblocks) {
+            blockrem = blocklen;
+          } else {
+            state(State::tran);
+            break;
+          }
+        }
+
+        assert(blockrem >= 0);
+      }
+    }
+
     void poll() {
-      if (blockrem == 0 and !readmultblocks)
+      switch (state()) {
+      case State::data:
+        break;
+      case State::rcv:
+        return rcvStuff();
+      default:
         return;
-
-      if (blockrem == 0 and readmultblocks and state() == State::data)
-        blockrem = i32(blocklen);
-
-      if (state() != State::data) {
-        printf("BLOCK REM: %d\n", blockrem);
-        assert(false);
       }
 
       imgreader.seekTo(addr);
@@ -332,22 +359,27 @@ struct PL180 {
         } tmp;
         u32 r = imgreader.read(tmp.array, 4);
         // tmp = swap32(tmp);
-         // printf("==============reading addr: %d (%ld) r=%d  [0x%x, 0x%x, 0x%x,0x%x]\n", addr , imgreader.getPos(), r, tmp.array[0], tmp.array[1], tmp.array[2],
-         // tmp.array[3]);
+        // printf("==============reading addr: %d (%ld) r=%d  [0x%x, 0x%x,
+        // 0x%x,0x%x]\n", addr , imgreader.getPos(), r, tmp.array[0],
+        // tmp.array[1], tmp.array[2], tmp.array[3]);
         controller->rxfifo(tmp.back);
         assert(r == 4);
         blockrem -= 4;
         addr += 4;
-      }
 
-      if (blockrem == 0) {
-        controller->cmdRespEnd();
-        controller->dataBlockEnd();
-        if (!readmultblocks)
-          state(State::tran);
-      }
+        if (blockrem == 0) {
+          controller->cmdRespEnd();
+          controller->dataBlockEnd();
+          if (readmultblocks) {
+            blockrem = blocklen;
+          } else {
+            state(State::tran);
+            break;
+          }
+        }
 
-      assert(blockrem >= 0);
+        assert(blockrem >= 0);
+      }
     }
 
     bool doAppCommand(u8 command, u32 arg, u32 *buf) {
@@ -359,6 +391,9 @@ struct PL180 {
         return true;
       }
       case AppCmd::SEND_SCR_51: {
+        assert(controller->_rxfifo.empty());
+        blockrem = 0;
+        readmultblocks = false;
         SCR::pack(buf);
         controller->rxfifo(swap32(buf[0]));
         controller->rxfifo(swap32(buf[1]));
@@ -453,6 +488,18 @@ struct PL180 {
         // poll();
         return true;
       }
+      case Cmd::WRITE_BLOCK_24: {
+        assert(state() == State::tran);
+        assert(controller->_txfifo.empty());
+        readmultblocks = false;
+        *buf = getStatus();
+        state(State::rcv);
+        addr = arg;
+        blockrem = i32(blocklen);
+        // printf("WRITE SINGLE: add = %d rem = %d\n", addr, blockrem);
+        // poll();
+        return true;
+      }
       case Cmd::READ_MULTIPLE_BLOCK_18: {
         assert(state() == State::tran);
         assert(controller->_rxfifo.empty());
@@ -466,13 +513,18 @@ struct PL180 {
         return true;
       }
       case Cmd::STOP_TRANSMISSION_12: {
-        // printf("        STOP TRANSMISSION: %d fifoempty? %d\n", u8(state()), controller->_rxfifo.empty()?1:0);
+        // printf("        STOP TRANSMISSION: %d fifoempty? %d\n", u8(state()),
+        // controller->_rxfifo.empty()?1:0);
         assert(state() == State::data);
         readmultblocks = false;
         *buf = getStatus();
         state(State::tran);
         return true;
       }
+      case Cmd::SEND_STATUS_13: {
+          *buf = getStatus();
+          return true;
+        }
       default:
         printf("Unhandled command: %d\n", command);
         assert(false);
@@ -523,7 +575,7 @@ struct PL180 {
     if (_datacnt == 0)
       return;
     u32 tmp = _datacnt - amount;
-    assert(tmp<_datacnt);
+    assert(tmp < _datacnt);
     _datacnt = tmp;
     if (_datacnt == 0) {
       _status |= (1u << 8);
@@ -540,14 +592,11 @@ struct PL180 {
   }
 
   u32 txfifo() {
-    if (_txfifo.empty()) {
-      _status |= (1u << 4);
-      return 0;
-    }
+    assert(!_txfifo.empty());
     if (!tranFromCard())
       dataCntDown();
     u32 data = _txfifo.read();
-    if(_datacnt == 0) {
+    if (_datacnt == 0) {
       _txfifo.drain();
     }
     return data;
@@ -569,7 +618,7 @@ struct PL180 {
     if (tranFromCard())
       dataCntDown();
     u32 data = _rxfifo.read();
-    if(_datacnt == 0) {
+    if (_datacnt == 0) {
       _rxfifo.drain();
     }
     return data;
@@ -602,6 +651,19 @@ struct PL180 {
     if (_datacnt > 0)
       sd.poll();
 
+    if (_datacnt > 0) {
+      if (tranFromCard()) {
+        _status |= (1u << 12);
+        _status &= ~(1u << 13);
+      } else {
+        _status |= (1u << 13);
+        _status &= ~(1u << 12);
+      }
+    } else {
+      _status &= ~(1u << 13);
+      _status &= ~(1u << 12);
+    }
+
     if (_txfifo.empty()) {
       _status |= (1u << 18);
       _status &= ~(1u << 20);
@@ -624,6 +686,18 @@ struct PL180 {
     } else {
       _status &= ~(1u << 19);
       _status |= (1u << 21);
+    }
+    
+    if (!_rxfifo.halfEmpty()) {
+      _status |= (1u << 15);
+    } else {
+      _status &= ~(1u << 15);
+    }
+    
+    if (_txfifo.halfEmpty()) {
+      _status |= (1u << 14);
+    } else {
+      _status &= ~(1u << 14);
     }
 
     if (_rxfifo.full()) {
@@ -692,7 +766,8 @@ struct PL180 {
   static u32 read(u32 addr, u8 width, PL180 *ctx) {
     // assert(false);
     u32 offt = addr & 0xfff;
-    // printf("..mmc r %x status %b\n", offt, ctx->_status);
+    // printf("..mmc r %x status %b datacount: %d\n", offt, ctx->_status,
+           // ctx->_datacnt);
     // fgetc(stdin);
     if (offt >= 0x80 and offt <= 0xbc) {
       // printf("reading... datacnt: %d width: %d\n", ctx->_datacnt, width);
@@ -735,6 +810,9 @@ struct PL180 {
     // printf("..mmc w\n");
 
     u32 offt = addr & 0xfff;
+    if (offt >= 0x80 and offt <= 0xbc) {
+      return ctx->txfifo(value);
+    }
     switch (offt) {
     case 0:
       return ctx->powerstuff(value);
