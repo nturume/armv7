@@ -122,12 +122,6 @@ struct PL011 {
 
   inline void disable() { uart_en = false; }
 
-  // inline u8 decIdx(u8 idx) {
-  //   if (idx == 0)
-  //     return 31;
-  //   return idx - 1;
-  // }
-
   inline void enableTxfifo() { tx_fen = true; }
 
   inline void disableTxfifo() { tx_fen = false; }

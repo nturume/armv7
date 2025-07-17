@@ -237,6 +237,7 @@ struct PL180 {
       STOP_TRANSMISSION_12 = 12,
       WRITE_BLOCK_24 = 24,
       SEND_STATUS_13 = 13,
+      WRITE_MULTIPLE_BLOCK_25 = 25,
     };
 
     enum class AppCmd {
@@ -315,6 +316,42 @@ struct PL180 {
       return status;
     }
 
+    const char *stateStr() {
+      switch (state()) {
+
+      case State::idle:
+        return "STATE::idle";
+      case State::ready:
+        return "STATE::ready";
+      case State::ident:
+        return "STATE::ident";
+      case State::stby:
+        return "STATE::stby";
+      case State::tran:
+        return "STATE::tran";
+      case State::data:
+        return "STATE::data";
+      case State::rcv:
+        return "STATE::rcv";
+      case State::prg:
+        return "STATE::prg";
+      case State::dis:
+        return "STATE::dis";
+      }
+    }
+
+    void enough() {
+      printf("   enough %s\n", stateStr());
+      switch (state()) {
+      case State::rcv:
+      case State::data:
+        return readmultblocks or writemultblocks ? state(state()) : state(State::tran);
+      case State::tran: return;
+      default:
+        assert(false);
+      }
+    }
+
     void rcvStuff() {
       imgreader.seekTo(addr);
       while (!controller->_txfifo.empty() and blockrem > 0) {
@@ -383,7 +420,7 @@ struct PL180 {
     }
 
     bool doAppCommand(u8 command, u32 arg, u32 *buf) {
-      // printf("==========> app command: %d\n", command);
+      printf("==========> app command: %d %s\n", command, stateStr());
       switch (AppCmd(command)) {
       case AppCmd::SD_SEND_OP_COND_41: {
         state(State::ready);
@@ -430,7 +467,7 @@ struct PL180 {
         expectapp = false;
         return doAppCommand(command, arg, buf);
       }
-      // printf("==========> command: %d\n", command);
+      printf("==========> command: %d %s\n", command, stateStr());
       switch (Cmd(command)) {
       case Cmd::GO_IDLE_STATE_0: {
         state(State::idle);
@@ -512,19 +549,32 @@ struct PL180 {
         // poll();
         return true;
       }
+      case Cmd::WRITE_MULTIPLE_BLOCK_25: {
+        assert(controller->_txfifo.empty());
+        assert(state() == State::tran);
+        writemultblocks = true;
+        *buf = getStatus();
+        state(State::rcv);
+        addr = arg;
+        blockrem = i32(blocklen);
+        // printf("WRITE MULT: add = %d rem = %d\n", addr, blockrem);
+        // poll();
+        return true;
+      }
       case Cmd::STOP_TRANSMISSION_12: {
         // printf("        STOP TRANSMISSION: %d fifoempty? %d\n", u8(state()),
         // controller->_rxfifo.empty()?1:0);
-        assert(state() == State::data);
+        assert(state() == State::data or state() == State::rcv);
         readmultblocks = false;
+        writemultblocks = false;
         *buf = getStatus();
         state(State::tran);
         return true;
       }
       case Cmd::SEND_STATUS_13: {
-          *buf = getStatus();
-          return true;
-        }
+        *buf = getStatus();
+        return true;
+      }
       default:
         printf("Unhandled command: %d\n", command);
         assert(false);
@@ -579,6 +629,7 @@ struct PL180 {
     _datacnt = tmp;
     if (_datacnt == 0) {
       _status |= (1u << 8);
+      sd.enough();
     } else {
       _status &= ~(1u << 8);
     }
@@ -648,8 +699,9 @@ struct PL180 {
   bool dataTranEnabled() { return (dctl) & 1; }
 
   u32 status() {
-    if (_datacnt > 0)
+    if (_datacnt > 0) {
       sd.poll();
+    }
 
     if (_datacnt > 0) {
       if (tranFromCard()) {
@@ -687,13 +739,13 @@ struct PL180 {
       _status &= ~(1u << 19);
       _status |= (1u << 21);
     }
-    
+
     if (!_rxfifo.halfEmpty()) {
       _status |= (1u << 15);
     } else {
       _status &= ~(1u << 15);
     }
-    
+
     if (_txfifo.halfEmpty()) {
       _status |= (1u << 14);
     } else {
@@ -766,8 +818,8 @@ struct PL180 {
   static u32 read(u32 addr, u8 width, PL180 *ctx) {
     // assert(false);
     u32 offt = addr & 0xfff;
-    // printf("..mmc r %x status %b datacount: %d\n", offt, ctx->_status,
-           // ctx->_datacnt);
+    printf("..mmc r %x status %b datacount: %d\n", offt, ctx->_status,
+    ctx->_datacnt);
     // fgetc(stdin);
     if (offt >= 0x80 and offt <= 0xbc) {
       // printf("reading... datacnt: %d width: %d\n", ctx->_datacnt, width);
