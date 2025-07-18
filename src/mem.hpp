@@ -51,7 +51,7 @@ struct Region {
 struct InvalidRegion : std::exception {
   u32 address;
   u32 byread;
-  
+
   InvalidRegion(u32 addr, bool by) : address(addr), byread(by){};
 };
 
@@ -61,8 +61,9 @@ struct Ram {
   u32 start;
   bool noalloc;
 
-  Ram(u32 start, u32 len, bool nl = false) : len(len), start(start), noalloc(nl) { 
-    buf = nl ? nullptr : new u8[len + 8]; 
+  Ram(u32 start, u32 len, bool nl = false)
+      : len(len), start(start), noalloc(nl) {
+    buf = nl ? nullptr : new u8[len + 8];
   }
 
   u32 r32(u32 pos) {
@@ -259,9 +260,7 @@ struct Memory {
   std::bitset<1048576> bitset = {};
   u32 program_end = 0;
 
-  void addRegion(Region r) {
-    regions.push_back(r);
-  }
+  void addRegion(Region r) { regions.push_back(r); }
 
   void assertNotUsed(u32 start, u32 len) {
     assert(start % 4096 == 0);
@@ -359,7 +358,7 @@ struct Memory {
     for (u32 i = 0; i < regions.size(); i++) {
       Region *region = regions.data() + i;
       if (region->has(addr)) {
-        return region->write(addr-region->start, value, width, region->ctx);
+        return region->write(addr - region->start, value, width, region->ctx);
       }
     }
     throw InvalidRegion(addr, false);
@@ -369,7 +368,7 @@ struct Memory {
     for (u32 i = 0; i < regions.size(); i++) {
       Region *region = regions.data() + i;
       if (region->has(addr)) {
-        return region->read(addr-region->start, width, region->ctx);
+        return region->read(addr - region->start, width, region->ctx);
       }
     }
     throw InvalidRegion(addr, true);
@@ -425,7 +424,7 @@ struct Memory {
     };
 
     union TTBCR {
-      struct {
+      struct __packed {
         u32 n : 3 = 0;
         u32 _1 : 29 = 0;
       } b;
@@ -434,7 +433,7 @@ struct Memory {
     };
 
     union TTBR0 {
-      struct {
+      struct __packed {
         u32 _1 : 32 = 0;
       } b;
       u32 back;
@@ -448,7 +447,7 @@ struct Memory {
     };
 
     union SCTLR {
-      struct {
+      struct __packed {
         u32 m : 1 = 0;
         u32 a : 1;
         u32 c : 1;
@@ -483,158 +482,98 @@ struct Memory {
       u32 back;
     };
 
-    SCTLR sctrl = {};
-    TTBCR ttbcr = {};
-    TTBR0 ttbr0 = {};
-    TTBR1 ttbr1 = {};
+    SCTLR _sctrl = {};
+    TTBCR _ttbcr = {};
+    TTBR0 _ttbr0 = {};
+    TTBR1 _ttbr1 = {};
+    u32 _dacr;
 
-    struct L1 {
+    u32 dacr() { return _dacr; }
 
-      enum class Type { invalid, page_table, section, super_section, _ };
+    void dacr(u32 v) { _dacr = v; }
 
-      u32 back;
+    u32 ttbr0() { return _ttbr0.back; }
 
-      Type t() {
-        if ((back & 0b11) == 0) {
-          return Type::invalid;
-        }
+    void ttbr0(u32 v) { _ttbr0.back = v; }
 
-        if ((back & 0b11) == 1) {
-          return Type::page_table;
-        }
+    u32 ttbr1() { return _ttbr1.back; }
 
-        if ((back & 0b11) == 0b10 and !((back >> 18) & 1)) {
-          return Type::section;
-        }
+    void ttbr1(u32 v) { _ttbr1.back = v; }
 
-        if ((back & 0b11) == 0b10 and ((back >> 18) & 1)) {
-          return Type::super_section;
-        }
-        return Type::_;
-      }
+    u32 ttbcr() { return _ttbcr.back; }
 
-      u32 base(u32 vaddr) {
-        switch (t()) {
-        case Type::page_table:
-          return back & 0xfffffc00;
-        case Type::section:
-          return back & 0xfff00000;
-        case Type::super_section:
-          return back & 0xff000000;
-        default:
-          throw PageFault(vaddr);
-        }
-      }
-    };
+    void ttbcr(u32 v) { _ttbcr.back = v; }
 
-    struct L2 {
-      enum class Type {
-        invalid,
-        large_page,
-        small_page,
-      };
-      u32 back;
-
-      Type t() {
-        if ((back & 0b11) == 0)
-          return Type::invalid;
-        if ((back & 0b11) == 1)
-          return Type::large_page;
-        return Type::small_page;
-      }
-
-      u32 base(u32 vaddr) {
-        switch (t()) {
-        case Type::large_page:
-          return back & 0xffff0000;
-        case Type::small_page:
-          return back & 0xfffff000;
-        default:
-          throw PageFault(vaddr);
-        }
-      }
-    };
-
-    union VA {
-      u32 back;
-      struct {
-        u32 offt : 12;
-        u32 l2 : 8;
-        u32 l1 : 12;
-      } b;
-
-      u32 l1() { return b.l1; }
-
-      u32 l2() { return b.l2; }
-
-      u32 offt() { return b.offt; }
-
-      u32 lOfft() { return back & 0xffff; }
-
-      u32 secOfft() { return back & 0xfffff; }
-
-      u32 supOfft() { return back & 0xffffff; }
-    };
-
-    u8 x() { return 14 - ttbcr.n(); }
+    u8 x() { return 14 - _ttbcr.n(); }
 
     u32 ttbr0Addr() {
       u8 n = x();
-      return (ttbr0.back >> n) << n;
+      assert(n == 14);
+      return (_ttbr0.back >> n) << n;
     }
 
     void setsctrl(u32 value) {
-      sctrl.back = value;
-      on = sctrl.b.m;
+      _sctrl.back = value;
+      on = _sctrl.b.m;
+      // assert(!on);
     }
 
-    u32 ttbr1Addr() { return (ttbr1.back >> 14) << 14; }
+    u32 ttbr1Addr() { return (_ttbr1.back >> 14) << 14; }
 
     inline u32 fstTTBR1Addr() {
-      assert(ttbcr.n() != 0);
-      return (0x80000000) >> (ttbcr.n() - 1);
+      assert(_ttbcr.n() != 0);
+      return (0x80000000) >> (_ttbcr.n() - 1);
     }
 
     u32 walk(u32 vaddr, Memory *mem) {
       if (!on)
         return vaddr;
-      VA va = VA{.back = vaddr};
-      if (ttbcr.n() > 0 and vaddr >= fstTTBR1Addr()) {
+      if (_ttbcr.n() > 0 and vaddr >= fstTTBR1Addr()) {
         printf("TODO ttbr1\n");
         assert(false);
       } else {
-        u32 ttbr0_addr = ttbr0Addr();
-        // printf("==================: %d %d\n", ttbr0_addr, ttbr0.back);
-        L1 l1 = {
-            .back = mem->a32a(ttbr0_addr + 4 * va.l1()),
-        };
-        // printf("li.base %x type %d back %d l1: %d l2: %d\n", l1.base(vaddr),
-        // (u32)l1.t(), l1.back, va.l1(), va.l2());
-        switch (l1.t()) {
-        case L1::Type::page_table: {
-          // assert(false);
-          L2 l2 = {
-              .back = mem->a32a(l1.base(vaddr) + 4 * va.l2()),
-          };
-          // printf("l1 base = %x l2 base = %x l2 back = %x\n",l1.base(vaddr),
-          // l2.base(vaddr), l2.back); assert(false);
-          switch (l2.t()) {
-          case L2::Type::small_page:
-            return l2.base(vaddr) + va.offt();
-          case L2::Type::large_page:
-            return l2.base(vaddr) + va.lOfft();
-          default:
-            throw PageFault(vaddr);
+        u32 ttbr0address = ttbr0Addr();
+        u32 ttbr0idx = vaddr >> 20;
+        u32 ttrb0entry = mem->__a32a(ttbr0address + (4 * ttbr0idx));
+        switch (ttrb0entry & 3) {
+        case 0b00:
+          throw PageFault(vaddr);
+        case 0b01: {
+          // page table
+          u32 pagetablebase = ttrb0entry & 0xfffffc00;
+          u32 lvl2idx = (vaddr >> 12) & 0xff;
+          u32 lvl2entry = mem->__a32a(pagetablebase + (lvl2idx * 4));
+          if (lvl2entry & 1) {
+            // large page
+            u32 pagebase = lvl2entry&0xffff0000;
+            return pagebase | (vaddr&0xffff);
           }
-        }
-        case L1::Type::section:
-          return l1.base(vaddr) + va.secOfft();
-        case L1::Type::super_section:
-          return l1.base(vaddr) + va.supOfft();
-        default:
+
+          if (lvl2entry & 0b10) {
+            // little page
+            u32 pagebase = lvl2entry&0xfffffc00;
+            return pagebase | (vaddr&0x3ff);
+          }
+
+          // page blast
           throw PageFault(vaddr);
         }
+        case 0b10: {
+          if (ttrb0entry & (1u << 8)) {
+            // supersection
+            assert(false);
+          } else {
+            // section
+            u32 sectionbase = ttrb0entry & 0xfff00000;
+            return sectionbase | (vaddr & 0x000fffff);
+          }
+        }
+        case 0b11: {
+          assert(false);
+        }
+        }
       }
+      assert("unreachable" == nullptr);
     }
   };
 
@@ -673,6 +612,8 @@ struct Memory {
     pos = mmu.walk(pos, this);
     return readRegion(pos, 4);
   }
+
+  u32 __a32a(u64 pos) { return readRegion(pos, 4); }
 
   void a32a(u64 pos, u32 value) {
     // TODO

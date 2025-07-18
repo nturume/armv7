@@ -7,7 +7,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include<unistd.h>
+#include <unistd.h>
 
 struct Cpu {
 
@@ -77,17 +77,15 @@ struct Cpu {
 
   bool disasmode = false;
 
-  u32 vbar() {
-    return __vbar;
-  }
+  u32 vbar() { return __vbar; }
 
-  void vbar(u32 value) {
-    __vbar = value;
-  }
+  void vbar(u32 value) { __vbar = value; }
 
   InstrSet currInstrSet() { return instrset; }
 
   void selectInstrSet(InstrSet i) { instrset = i; }
+
+  bool irqMasked() { return apsr.b.i; }
 
   inline bool cnd() {
     u8 cond = cur >> 28;
@@ -187,13 +185,20 @@ struct Cpu {
     }
   }
 
-  u8 getBank(u8 rmode) {
+  u8 getBank(u8 rmode, u8 pos) {
+    if (pos < 8)
+      return u8(Mode::user);
+    if (rmode == u8(Mode::fiq))
+      return rmode;
+    if (pos < 13)
+      return u8(Mode::user);
     switch (Mode(rmode)) {
     case Mode::user:
     case Mode::system:
       return u8(Mode::user);
     default:
-      return M();
+      assert(!badMode(rmode));
+      return rmode;
     }
   }
 
@@ -261,14 +266,10 @@ struct Cpu {
     }
   }
 
-  u32 rMode(u8 pos, u8 rmode) {
-    assert(!badMode(rmode));
-    return regs[getBank(rmode)][pos];
-  }
+  u32 rMode(u8 pos, u8 rmode) { return regs[getBank(rmode, pos)][pos]; }
 
   void rMode(u8 pos, u32 value, u8 rmode) {
-    assert(!badMode(rmode));
-    regs[getBank(rmode)][pos] = value;
+    regs[getBank(rmode, pos)][pos] = value;
   }
 
   inline u32 r(u8 pos) {
@@ -278,12 +279,12 @@ struct Cpu {
   }
 
   u32 excVectorBase() {
-    if (mem.mmu.sctrl.b.v) {
+    if (mem.mmu._sctrl.b.v) {
       return 0xffff0000;
     }
     if (hasSecurityExt())
       assert(false);
-    
+
     return vbar();
   }
 
@@ -293,7 +294,7 @@ struct Cpu {
 
   void cpsrWriteByInstr(u32 value, u8 bytemask, bool is_excpt_return) {
     bool privileged = curModeIsntUser();
-    bool nmfi = mem.mmu.sctrl.b.nmfi;
+    bool nmfi = mem.mmu._sctrl.b.nmfi;
     u32 _cpsr;
 
     if ((bytemask >> 3) & 1) {
@@ -512,20 +513,23 @@ struct Cpu {
   void printRegisters() {
     printf("=========regs==========\n");
     for (u32 i = 0; i < 16; i++) {
-      printf("r%d =  %x\n", i, i < 15 ? r(i) : pcReal());
+      printf("r%.2d -> %.8x ", i, i < 15 ? r(i) : pcReal());
+      if(i==7) {
+        printf("\n");
+      }
     }
-    printf("=========flags=========\n");
+    printf("\n=========flags=========\n");
     printf("n: %d, z: %d, c: %d, v: %d, q: %d\n", (u32)apsr.b.n, (u32)apsr.b.z,
            (u32)apsr.b.c, (u32)apsr.b.v, (u32)apsr.b.q);
   }
-  
+
   void disasm(u32 ip, u32 word) {
     FILE *tmp = fopen("/tmp/myvm/instr.bin", "w");
     assert(tmp);
     FileReader f(tmp);
     f.seekTo(0);
     assert(f.write((u8 *)&word, 4) == 4);
-    u64 tmpsize = f.getFileSize(); 
+    u64 tmpsize = f.getFileSize();
     f.close();
     char cmd[256] = {0};
     snprintf(
@@ -550,18 +554,15 @@ struct Cpu {
     pclose(out);
   }
 
-  void enterdisas() {
-    disasmode = true;
-  } 
+  void enterdisas() { disasmode = true; }
 
-  void leavedisas() {
-    disasmode = false;
-  }
+  void leavedisas() { disasmode = false; }
 
   void dbgStack(u32 depth, u32 words = 1) {
-    assert(!(depth&0b11));
-    for(u32 i = 0; i < words; i++) {
-      printf("  [SP+%d] = %x\n", depth+(i*4), mem.a32u(sp()+depth+(i*4)));
+    assert(!(depth & 0b11));
+    for (u32 i = 0; i < words; i++) {
+      printf("  [SP+%d] = %x\n", depth + (i * 4),
+             mem.a32u(sp() + depth + (i * 4)));
     }
   }
 
@@ -625,8 +626,8 @@ struct Cpu {
     apsr.b.i = 1;
     apsr.b.it = apsr.b.it2 = 0;
     apsr.b.j = 0;
-    apsr.b.t = mem.mmu.sctrl.b.te;
-    apsr.b.e = mem.mmu.sctrl.b.ee;
+    apsr.b.t = mem.mmu._sctrl.b.te;
+    apsr.b.e = mem.mmu._sctrl.b.ee;
     return branchTo(excVectorBase() + 4);
   }
 
@@ -639,8 +640,8 @@ struct Cpu {
     apsr.b.i = 1;
     apsr.b.it = apsr.b.it2 = 0;
     apsr.b.j = 0;
-    apsr.b.t = mem.mmu.sctrl.b.te;
-    apsr.b.e = mem.mmu.sctrl.b.ee;
+    apsr.b.t = mem.mmu._sctrl.b.te;
+    apsr.b.e = mem.mmu._sctrl.b.ee;
     return branchTo(excVectorBase() + 8);
   }
 
@@ -658,8 +659,8 @@ struct Cpu {
     apsr.b.i = 1;
     apsr.b.it = apsr.b.it2 = 0;
     apsr.b.j = 0;
-    apsr.b.t = mem.mmu.sctrl.b.te;
-    apsr.b.e = mem.mmu.sctrl.b.ee;
+    apsr.b.t = mem.mmu._sctrl.b.te;
+    apsr.b.e = mem.mmu._sctrl.b.ee;
     return branchTo(excVectorBase() + 12);
   }
 
@@ -672,12 +673,26 @@ struct Cpu {
     apsr.b.i = 1;
     apsr.b.it = apsr.b.it2 = 0;
     apsr.b.j = 0;
-    apsr.b.t = mem.mmu.sctrl.b.te;
-    apsr.b.e = mem.mmu.sctrl.b.ee;
+    apsr.b.t = mem.mmu._sctrl.b.te;
+    apsr.b.e = mem.mmu._sctrl.b.ee;
     return branchTo(excVectorBase() + 16);
   }
 
-  #define MIDR 0x410fc090
+  u32 takeIRQException() {
+    u32 new_lr_value = pc() - 4;
+    u32 new_spsr_value = cpsr();
+    apsr.b.m = u8(Mode::irq);
+    spsr(new_spsr_value);
+    r(14, new_lr_value);
+    apsr.b.i = 1;
+    apsr.b.it = apsr.b.it2 = 0;
+    apsr.b.j = 0;
+    apsr.b.t = mem.mmu._sctrl.b.te;
+    apsr.b.e = mem.mmu._sctrl.b.ee;
+    return branchTo(excVectorBase() + 24);
+  }
+
+#define MIDR 0x410fc090
 
   void cp15SendWord() {
     u8 crm = cur & 0xf;
@@ -686,32 +701,99 @@ struct Cpu {
     u8 crn = (cur >> 16) & 0xf;
     u8 opc1 = (cur >> 21) & 7;
 
-    
-    if(crn==1 and opc1 == 0 and crm == 0 and opc2 == 0) {
+    if (crn == 1 and opc1 == 0 and crm == 0 and opc2 == 0) {
       return mem.mmu.setsctrl(r(t));
     }
-    
-    if(crn==12 and opc1 == 0 and crm == 0 and opc2 == 0) {
+
+    if (crn == 12 and opc1 == 0 and crm == 0 and opc2 == 0) {
       return vbar(r(t));
     }
-    
-    if(crn==8 and opc1 == 0 and crm == 7 and opc2 == 0) {
-      // Invalidate entire unified TLB 
-      return;
-    }
-    
-    if(crn==7 and opc1 == 0 and crm == 5 and opc2 == 0) {
-      // Instruction cache invalidate all 
+
+    if (crn == 8 and opc1 == 0 and crm == 7 and opc2 == 0) {
+      // Invalidate entire unified TLB
       return;
     }
 
-    if(crn==7 and opc1 == 0 and crm == 5 and opc2 == 6) {
-      // Branch predictor invalidate all 
+    if (crn == 7 and opc1 == 0 and crm == 5 and opc2 == 0) {
+      // Instruction cache invalidate all
       return;
     }
-    
-    if(crn==7 and opc1 == 0 and crm == 14 and opc2 == 1) {
+
+    if (crn == 7 and opc1 == 0 and crm == 5 and opc2 == 6) {
+      // Branch predictor invalidate all
+      return;
+    }
+
+    if (crn == 7 and opc1 == 0 and crm == 14 and opc2 == 1) {
       // Data cache clean and invalidate by MVA
+      return;
+    }
+
+    if (crn == 7 and opc1 == 0 and crm == 10 and opc2 == 5) {
+      // B4.1.37 CP15DMB, CP15 Data Memory Barrier operation, VMSA
+      return;
+    }
+
+    if (crn == 7 and opc1 == 0 and crm == 10 and opc2 == 1) {
+      // B4.1.46 DCCMVAC, Data Cache Clean by MVA to PoC, VMSA
+      return;
+    }
+
+    if (crn == 7 and opc1 == 0 and crm == 10 and opc2 == 4) {
+      // CP15DSB, CP15 Data Synchronization Barrier operation, VMSA
+      return;
+    }
+
+    if (crn == 7 and opc1 == 0 and crm == 14 and opc2 == 2) {
+      // B4.1.45 DCCISW, Data Cache Clean and Invalidate by Set/Way, VMSA
+      return;
+    }
+
+    if (crn == 7 and opc1 == 0 and crm == 11 and opc2 == 1) {
+      // B4.1.47 DCCMVAU, Data Cache Clean by MVA to PoU, VMSA
+      return;
+    }
+
+    if (crn == 7 and opc1 == 0 and crm == 5 and opc2 == 1) {
+      // ICIMVAU, Instruction Cache Invalidate by MVA to PoU, VMSA
+      return;
+    }
+
+    if (crn == 7 and opc1 == 0 and crm == 5 and opc2 == 4) {
+      // CP15ISB, CP15 Instruction Synchronization Barrier operation, VMSA
+      return;
+    }
+
+    if (crn == 2 and opc1 == 0 and crm == 0 and opc2 == 0) {
+      return mem.mmu.ttbr0(r(t));
+    }
+
+    if (crn == 2 and opc1 == 0 and crm == 0 and opc2 == 1) {
+      return mem.mmu.ttbr1(r(t));
+    }
+
+    if (crn == 0 and opc1 == 2 and crm == 0 and opc2 == 0) {
+      return; // B4.1.41 CSSELR, Cache Size Selection Register, VMSA
+    }
+
+    if (crn == 3 and opc1 == 0 and crm == 0 and opc2 == 0) {
+      // B4.1.43 DACR, Domain Access Control Register, VMSA
+      return mem.mmu.dacr(r(t));
+    }
+
+    if (crn == 2 and opc1 == 0 and crm == 0 and opc2 == 2) {
+      return mem.mmu.ttbcr(r(t));
+    }
+
+    if (crn == 10 and opc1 == 0 and crm == 2 and opc2 == 0) {
+      // B4.1.104 MAIR0 and MAIR1, Memory Attribute Indirection Registers 0 and
+      // 1, VMSA
+      return;
+    }
+
+    if (crn == 10 and opc1 == 0 and crm == 2 and opc2 == 1) {
+      // B4.1.104 MAIR0 and MAIR1, Memory Attribute Indirection Registers 0 and
+      // 1, VMSA
       return;
     }
 
@@ -728,23 +810,65 @@ struct Cpu {
 
     // c1 0 c0 0
 
-
-    if(crn==1 and opc1 == 0 and crm == 0 and opc2 == 0) {
-      return r(t, mem.mmu.sctrl.back);
+    if (crn == 1 and opc1 == 0 and crm == 0 and opc2 == 0) {
+      return r(t, mem.mmu._sctrl.back);
     }
-    
-    if(crn==0 and opc1 == 0 and crm == 0 and opc2 == 0) {
+
+    if (crn == 0 and opc1 == 0 and crm == 0 and opc2 == 0) {
       return r(t, MIDR);
     }
-    
-    if(crn==0 and opc1 == 1 and crm == 0 and opc2 == 0) {
-      return r(t, 0);//B4.1.19 CCSIDR, Cache Size ID Registers, VMSA
+
+    if (crn == 0 and opc1 == 1 and crm == 0 and opc2 == 0) {
+      return r(t, 0); // B4.1.19 CCSIDR, Cache Size ID Registers, VMSA
+    }
+
+    if (crn == 0 and opc1 == 0 and crm == 1 and opc2 == 4) {
+      return r(t, 7); // B4.1.89 ID_MMFR0, Memory Model Feature Register 0, VMSA
+    }
+
+    if (crn == 0 and opc1 == 0 and crm == 1 and opc2 == 5) {
+      return r(t, 0); // B4.1.89 ID_MMFR1, Memory Model Feature Register 0, VMSA
+    }
+
+    if (crn == 2 and opc1 == 0 and crm == 0 and opc2 == 2) {
+      return r(t, mem.mmu.ttbcr());
+    }
+
+    if (crn == 0 and opc1 == 0 and crm == 0 and opc2 == 1) {
+      return r(t, 0x60000);
+    }
+
+    if (crn == 0 and opc1 == 1 and crm == 0 and opc2 == 1) {
+      return r(t, 0x9000003); // B4.1.20 CLIDR, Cache Level ID Register, VMSA
+    }
+
+    if (crn == 0 and opc1 == 0 and crm == 0 and opc2 == 5) {
+      return r(t, 0x60000); // MPIDR, Multiprocessor Affinity Register, VMSA
     }
 
     printf("c%d %d c%d %d\n", crn, opc1, crm, opc2);
     // printf("mrc p15 %d, r%d, c%d, c%d, %d\n", opc1, t, crn, crm, opc2);
 
     assert("read unimplemented cp15 reg\n" == nullptr);
+  }
+
+  void cp14getWord() {
+    u8 crm = cur & 0xf;
+    u8 opc2 = (cur >> 5) & 7;
+    u8 t = (cur >> 12) & 0xf;
+    u8 crn = (cur >> 16) & 0xf;
+    u8 opc1 = (cur >> 21) & 7;
+
+    // c1 0 c0 0
+
+    if (crn == 0 and opc1 == 0 and crm == 0 and opc2 == 0) {
+      return r(t, 0x35141000);
+    }
+
+    printf("c%d %d c%d %d\n", crn, opc1, crm, opc2);
+    // printf("mrc p15 %d, r%d, c%d, c%d, %d\n", opc1, t, crn, crm, opc2);
+
+    assert("read unimplemented cp14 reg\n" == nullptr);
   }
 
   inline u32 mcr() {
@@ -768,6 +892,9 @@ struct Cpu {
       switch (coproc) {
       case 15:
         cp15getWord();
+        break;
+      case 14:
+        cp14getWord();
         break;
       default:
         printf("unknown coproc: %d\n", coproc);
@@ -1178,6 +1305,36 @@ struct Cpu {
       if (setpc) {
         return newpc;
       }
+    }
+    return nxt();
+  }
+
+  inline u32 ldmExRet() {
+    if (cnd()) {
+      u16 registers = cur;
+      u8 n = cur >> 16;
+      bool wback = cbit(21);
+      bool incr = cbit(23);
+      bool wordhigher = (incr == cbit(24));
+      assert(!curModeIsHype());
+      assert(!curModeIsUsrSys());
+      u32 length = 4 * bitcount16(registers) + 4;
+      u32 address = incr ? r(n) : r(n) - length;
+      if (wordhigher)
+        address += 4;
+      for (u8 i = 0; i < 15 and registers; i++) {
+        if (registers & 1) {
+          r(i, mem.a32a(address));
+          address += 4;
+        }
+        registers >>= 1;
+      }
+      u32 new_pc_value = mem.a32a(address);
+      if (wback) {
+        r(n, incr ? r(n) + length : r(n) - length);
+      }
+      cpsrWriteByInstr(spsr(), 0xf, true);
+      return branchWritePc(new_pc_value);
     }
     return nxt();
   }

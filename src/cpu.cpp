@@ -418,6 +418,8 @@ u32 Cpu::exec(u32 word) {
     return pop();
   case Instr::push:
     return push();
+  case Instr::ldmExRet:
+    return ldmExRet();
   //=== branch ====
   case Instr::b:
     return b();
@@ -453,6 +455,7 @@ u32 Cpu::exec(u32 word) {
   case Instr::pldImm:
   case Instr::pldLit:
   case Instr::pldReg:
+  case Instr::clrex:
     return nxt();
   case Instr::wfi:
     leavedisas();
@@ -465,6 +468,7 @@ u32 Cpu::exec(u32 word) {
   default:
     printf("unhandled instruction at 0x%x ", pcReal());
     Decoder::printInstr(instr);
+    disasm(pcReal(), cur);
     abort();
   }
 }

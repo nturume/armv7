@@ -16,7 +16,8 @@
 #include "flash.hpp"
 #include "mmc.hpp"
 #include "lan9118.hpp"
-#include <thread>
+#include "gic.hpp"
+#include "sys.hpp"
 
 
 #define UBOOT_BASE 0x60800000
@@ -24,6 +25,11 @@
 // #define HIGMEM2_BASE 0x70000000
 #define FLASH1_BASE 0x40000000
 #define FLASH2_BASE 0x44000000
+
+#define DTB_ADDR 0x60000200
+#define ZIMAGE_ADDR 0x60060000
+#define MACH_ID 2272
+#define INITRD_ADDR 0x60900000
 
 int main(int argc, const char *argv[], const char *envp[]) {
   // Cpu::test();
@@ -46,16 +52,20 @@ int main(int argc, const char *argv[], const char *envp[]) {
   SP804 timer01;
   PL180 pl180;
   LAN9118 eth;
+  GIC gic;
   
   c.mem.addRegion(sp810.getRegion(0x10001000));
   c.mem.addRegion(uart0.getRegion(0x10009000));
   c.mem.addRegion(timer01.getRegion(0x10011000));
   c.mem.addRegion(pl180.getRegion(0x10005000));
   c.mem.addRegion(eth.getRegion(0x4e000000));
+  c.mem.addRegion(gic.getRegion(0x1e000100));
+  c.mem.addRegion(gic.distr.getRegion(0x1e001000));
+  c.mem.addRegion(SYS::getRegion(0x10000000));
   
 
   c.mem.loadBin(UBOOT_BASE,"/home/m/Desktop/u-boot-2025.07/u-boot.bin");
-  
+
   // Elf elf("/home/m/Desktop/u-boot-2025.07/u-boot");
 
   // Elf::ProgramHeaderIterator iter(elf.file, elf.header);
@@ -65,7 +75,11 @@ int main(int argc, const char *argv[], const char *envp[]) {
 
   // u32 sp = stack->loadArgs(argv, envp+10);
 
-  // c.apsr.b.m = u8(Cpu::Mode::user);
+  // c.apsr.b.m = u8(Cpu::Mode::user)
+
+//   ===page fault=== 3e04118 ffff0000
+// 8001d050:	e59c30b8 	ldr	r3, [ip, #184]	@ 0xb8
+
 
   // c.mem.regions.push_back(UART::getRegion());
 
@@ -125,14 +139,28 @@ int main(int argc, const char *argv[], const char *envp[]) {
     //  c.printMode(c.M());
     //  printf("ttbcr: %d\n", c.mem.mmu.ttbr0.back);
     try {
+      u32 word = c.mem.a32u(c.pcReal());
+
+      // if(c.M()==u8(Cpu::Mode::irq)) {
+      //   printf("IN IRQ MODE");
+      //   //assert(false);
+      //   c.disasm(c.pcReal(), word);
+      //   c.printRegisters();
+      // } else {
+      //   c.disasmode = false;
+      // }
       // c.printRegisters();
       // if(count==10)break;
-      u32 word = c.mem.a32u(c.pcReal());
       // if(word==prev) count+=1; else count=0;
       // printf("                          %x\n", c.pcReal());
-      if(c.disasmode) c.disasm(c.pcReal(), word);
-      // Decoder::printInstr(Decoder::decode(word, c.currInstrSet()));
       u32 pc = c.exec(word);
+
+      if(c.disasmode) {
+        c.disasm(c.pcReal(), word);
+      //   Decoder::printInstr(Decoder::decode(word, c.currInstrSet()));
+        c.printRegisters();
+      }
+      // Decoder::printInstr(Decoder::decode(word, c.currInstrSet()));
       // prev = word;
       c.pcReal(pc);
     } catch (InvalidRegion &in) {
@@ -141,8 +169,11 @@ int main(int argc, const char *argv[], const char *envp[]) {
       // c.pcReal(c.takeDataAbortException());
       abort();
     } catch (Memory::MMU::PageFault &pf) {
-      printf("===page fault=== %x\n", pf.vaddr);
+      printf("===page fault=== %x %x\n", pf.vaddr, c.excVectorBase());
+      c.disasm(c.pcReal(), c.cur);
+      c.printRegisters();
       abort();
+      // c.pcReal(c.takeDataAbortException());
     }
 
     // if(c.pcReal()==0x184c8) {
@@ -156,11 +187,12 @@ int main(int argc, const char *argv[], const char *envp[]) {
     //   }
     // }
 
-    // if (c.pcReal()==0x7ffc27e8 or step_mode) {
+    // if (c.pcReal()==0x80010960 or step_mode) {
     //   step_mode = true;
     //   c.disasmode = true;
     //   c.printRegisters();
-    //   c.dbgStack(0,10);
+    //   // c.dbgStack(0,10);
+    //   printf("fgetc() ..\n");
     //   fgetc(stdin);
     // }
 
@@ -173,11 +205,13 @@ int main(int argc, const char *argv[], const char *envp[]) {
 
     count += 1;
 
-    if((count&0x7)==0) {
+    if((count%64)==0) {
       bool t1 = timer01.tick1();
       bool t2 = timer01.tick2();
-
-      assert(!t1 and !t2);
+      assert(!t2);
+      if(t1) {
+        gic.intr(&c, 34);
+      }
     }
   }
 }

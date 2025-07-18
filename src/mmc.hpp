@@ -818,8 +818,8 @@ struct PL180 {
   static u32 read(u32 addr, u8 width, PL180 *ctx) {
     // assert(false);
     u32 offt = addr & 0xfff;
-    printf("..mmc r %x status %b datacount: %d\n", offt, ctx->_status,
-    ctx->_datacnt);
+    // printf("..mmc r %x status %b datacount: %d\n", offt, ctx->_status,
+    // ctx->_datacnt);
     // fgetc(stdin);
     if (offt >= 0x80 and offt <= 0xbc) {
       // printf("reading... datacnt: %d width: %d\n", ctx->_datacnt, width);

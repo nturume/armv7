@@ -18,6 +18,8 @@ using i64 = long;
 
 #define fn auto
 
+#define __packed __attribute((packed))
+
 struct FileReader {
   FILE *f;
 

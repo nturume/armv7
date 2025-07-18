@@ -2,6 +2,7 @@
 #include "fifo.hpp"
 #include "mem.hpp"
 #include "stuff.hpp"
+#include <cassert>
 #include <chrono>
 #include <cstdio>
 #include <thread>
@@ -171,7 +172,7 @@ struct PL011 {
     if (rx_enabled and uart_en) {
       return rxPop();
     }
-    return 0xffffffff;
+    assert(false);
   }
 
   void control(u32 cr) {
@@ -184,10 +185,12 @@ struct PL011 {
   }
 
   static void rxgetc(PL011 *p) {
+    i8 c;
+    while((c=std::getchar())  != '\n' and c!=EOF);
     for (;;) {
-      u8 ch = fgetc(stdin);
-      // printf("stdin: %c\n", ch);
-      p->rxPush(ch);
+      c = getchar();
+      printf("stdin: %c\n", c);
+      p->rxPush(c);
     }
   }
 
