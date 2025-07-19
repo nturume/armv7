@@ -816,6 +816,7 @@ struct PL180 {
   u32 response(u32 n) { return cmdbuf[n]; }
 
   static u32 read(u32 addr, u8 width, PL180 *ctx) {
+    return 0xffffffff;
     // assert(false);
     u32 offt = addr & 0xfff;
     // printf("..mmc r %x status %b datacount: %d\n", offt, ctx->_status,
@@ -858,6 +859,7 @@ struct PL180 {
     }
   }
   static void write(u32 addr, u32 value, u8 width, PL180 *ctx) {
+    return;
     // assert(false);
     // printf("..mmc w\n");
 

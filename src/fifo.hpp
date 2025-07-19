@@ -22,15 +22,69 @@ template <typename T, u32 N> struct FIFO {
   bool full() { return _full; }
 
   u32 _size() {
-    if(wpos > rpos) {
-      return wpos-rpos;
+    if (wpos > rpos) {
+      return wpos - rpos;
     }
-    return rpos-wpos;
+    return rpos - wpos;
   }
 
-  bool halfEmpty() {
-    return _size()<=(N/2);
+  bool halfEmpty() { return _size() <= (N / 2); }
+
+  u32 incIdx(u32 idx) { return (idx + 1) % N; }
+
+  T read() {
+    assert(!empty());
+    T data = buf[rpos];
+    rpos = incIdx(rpos);
+    _full = false;
+    if (wpos == rpos) {
+      _empty = true;
+    }
+    return data;
   }
+
+  void write(T v) {
+    assert(!full());
+    buf[wpos] = v;
+    wpos = incIdx(wpos);
+    _empty = false;
+    if (wpos == rpos) {
+      _full = true;
+    }
+  }
+};
+
+template <typename T> struct DYNFIFO {
+  T *buf;
+
+  u32 N;
+  u32 rpos = 0;
+  u32 wpos = 0;
+
+  bool _full = false;
+  bool _empty = true;
+  // bool _hfull = false;
+  // bool _hempty = true;
+
+  void drain() {
+    rpos = 0;
+    wpos = 0;
+    _full = false;
+    _empty = true;
+  }
+
+  bool empty() { return _empty; }
+
+  bool full() { return _full; }
+
+  u32 _size() {
+    if (wpos > rpos) {
+      return wpos - rpos;
+    }
+    return rpos - wpos;
+  }
+
+  bool halfEmpty() { return _size() <= (N / 2); }
 
   u32 incIdx(u32 idx) { return (idx + 1) % N; }
 
@@ -91,17 +145,17 @@ template <typename T, u32 N> struct SharedFIFO {
     std::unique_lock<std::mutex> lock(mut);
     return _full;
   }
-  
+
   u32 _size() {
-    if(wpos > rpos) {
-      return wpos-rpos;
+    if (wpos > rpos) {
+      return wpos - rpos;
     }
-    return rpos-wpos;
+    return rpos - wpos;
   }
 
   bool halfEmpty() {
     std::unique_lock<std::mutex> lock(mut);
-    return _size()<=(N/2);
+    return _size() <= (N / 2);
   }
 
   bool __empty() { return _empty; }

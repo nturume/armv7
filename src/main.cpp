@@ -83,7 +83,7 @@ int main(int argc, const char *argv[], const char *envp[]) {
 
   // c.mem.regions.push_back(UART::getRegion());
 
-  std::thread t(PL011::rxgetc, &uart0);
+  // std::thread t(PL011::rxgetc, &uart0);
 
   c.reset();
 
@@ -205,7 +205,7 @@ int main(int argc, const char *argv[], const char *envp[]) {
 
     count += 1;
 
-    if((count%64)==0) {
+    if((count%10)==0) {
       bool t1 = timer01.tick1();
       bool t2 = timer01.tick2();
       assert(!t2);

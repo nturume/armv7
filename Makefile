@@ -37,7 +37,7 @@ $(TARGET_EXEC): $(OBJS)
 $(BUILD_DIR)/%.cpp.o: %.cpp $(HEADERS) 
 	@echo "Compiling $<"
 	$(V_AT)mkdir -p $(dir $@)
-	$(V_AT)$(CXX) -g -O3 $(CPPFLAGS) -c $< -o $@ $(CFLAGS)
+	$(V_AT)$(CXX) -g -O0 $(CPPFLAGS) -c $< -o $@ $(CFLAGS)
 
 $(BUILD_DIR)/elf: $(ASM) $(SRC_DIRS)/l.ld
 	$(V_AT)$(TOOLCHAIN)as $(SRC_DIRS)/prog.s -o $(BUILD_DIR)/a.out

@@ -530,7 +530,7 @@ struct Memory {
         return vaddr;
       if (_ttbcr.n() > 0 and vaddr >= fstTTBR1Addr()) {
         printf("TODO ttbr1\n");
-        assert(false);
+        unrch();
       } else {
         u32 ttbr0address = ttbr0Addr();
         u32 ttbr0idx = vaddr >> 20;
@@ -561,7 +561,7 @@ struct Memory {
         case 0b10: {
           if (ttrb0entry & (1u << 8)) {
             // supersection
-            assert(false);
+            unrch();
           } else {
             // section
             u32 sectionbase = ttrb0entry & 0xfff00000;
@@ -569,11 +569,11 @@ struct Memory {
           }
         }
         case 0b11: {
-          assert(false);
+          unrch();
         }
         }
       }
-      assert("unreachable" == nullptr);
+      unrch();
     }
   };
 

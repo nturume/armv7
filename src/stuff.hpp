@@ -20,6 +20,8 @@ using i64 = long;
 
 #define __packed __attribute((packed))
 
+#define unrch() assert(false)
+
 struct FileReader {
   FILE *f;
 
